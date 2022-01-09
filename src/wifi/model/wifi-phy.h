@@ -105,7 +105,7 @@ public:
    * \param rxPowersW the receive power in W per band
    * \param rxDuration the duration of the PPDU
    */
-  void StartReceivePreamble (Ptr<WifiPpdu> ppdu, RxPowerWattPerChannelBand rxPowersW, Time rxDuration);
+  void StartReceivePreamble (Ptr<WifiPpdu> ppdu, RxPowerWattPerChannelBand& rxPowersW, Time rxDuration);
 
   /**
    * Reset PHY at the end of the packet under reception after it has failed the PHY header.
@@ -570,7 +570,7 @@ public:
    * \param psdu the PSDU being transmitted
    * \param rxPowersW the receive power per channel band in Watts
    */
-  void NotifyRxBegin (Ptr<const WifiPsdu> psdu, RxPowerWattPerChannelBand rxPowersW);
+  void NotifyRxBegin (Ptr<const WifiPsdu> psdu, const RxPowerWattPerChannelBand& rxPowersW);
   /**
    * Public method used to fire a PhyRxEnd trace.
    * Implemented for encapsulation purposes.
@@ -679,6 +679,14 @@ public:
                                             uint16_t staId);
 
   /**
+   * TracedCallback signature for Phy transmit events.
+   *
+   * \param packet the packet being transmitted
+   * \param txPowerW the transmit power in Watts
+   */
+  typedef void (* PhyTxBeginTracedCallback)(Ptr<const Packet> packet, double txPowerW);
+
+  /**
    * TracedCallback signature for PSDU transmit events.
    *
    * \param psduMap the PSDU map being transmitted
@@ -686,6 +694,14 @@ public:
    * \param txPowerW the transmit power in Watts
    */
   typedef void (* PsduTxBeginCallback)(WifiConstPsduMap psduMap, WifiTxVector txVector, double txPowerW);
+
+  /**
+   * TracedCallback signature for PhyRxBegin trace source.
+   *
+   * \param packet the packet being received
+   * \param rxPowersW the receive power per channel band in Watts
+   */
+  typedef void (* PhyRxBeginTracedCallback) (Ptr<const Packet> packet, RxPowerWattPerChannelBand rxPowersW);
 
   /**
    * TracedCallback signature for start of PSDU reception events.
@@ -1254,12 +1270,6 @@ private:
   void AbortCurrentReception (WifiPhyRxfailureReason reason);
 
   /**
-   * Eventually switch to CCA busy
-   * \param channelWidth the channel width in MHz used for RSSI measurement
-   */
-  void MaybeCcaBusyDuration (uint16_t channelWidth);
-
-  /**
    * Get the PSDU addressed to that PHY in a PPDU (useful for MU PPDU).
    *
    * \param ppdu the PPDU to extract the PSDU from
@@ -1346,7 +1356,7 @@ private:
    * ieee80211_input_monitor()
    *
    * \see class CallBackTraceSource
-   * \todo WifiTxVector and signalNoiseDbm should be be passed as
+   * \todo WifiTxVector and signalNoiseDbm should be passed as
    *       const references because of their sizes.
    */
   TracedCallback<Ptr<const Packet>, uint16_t /* frequency (MHz) */, WifiTxVector, MpduInfo, SignalNoiseDbm, uint16_t /* STA-ID*/> m_phyMonitorSniffRxTrace;

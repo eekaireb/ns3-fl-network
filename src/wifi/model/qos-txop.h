@@ -44,9 +44,8 @@ class WifiTxParameters;
  * \ingroup wifi
  *
  * This class implements the packet fragmentation and retransmission policy for
- * QoS data frames. It uses the ns3::MacLow and ns3::ChannelAccessManager helper classes
- * to respectively send packets and decide when to send them. Packets are stored
- * in a ns3::WifiMacQueue until they can be sent.
+ * QoS data frames. It uses the ns3::ChannelAccessManager helper class to decide
+ * when to send a packet. Packets are stored in a ns3::WifiMacQueue until they can be sent.
  *
  * This queue contains packets for a particular access class.
  * Possibles access classes are:
@@ -56,8 +55,6 @@ class WifiTxParameters;
  *   - AC_BK : background, TID = 1,2
  *
  * This class also implements block ack sessions and MSDU aggregation (A-MSDU).
- * If A-MSDU is enabled for that access class, it picks several packets from the
- * queue instead of a single one and sends the aggregated packet to ns3::MacLow.
  *
  * The fragmentation policy currently implemented uses a simple
  * threshold: any packet bigger than this threshold is fragmented
@@ -80,14 +77,17 @@ public:
    */
   static TypeId GetTypeId (void);
 
-  QosTxop ();
+  /**
+   * Constructor
+   *
+   * \param ac the Access Category
+   */
+  QosTxop (AcIndex ac = AC_UNDEF);
+
   virtual ~QosTxop ();
 
   bool IsQosTxop (void) const override;
-  AcIndex GetAccessCategory (void) const override;
-  void SetWifiRemoteStationManager (const Ptr<WifiRemoteStationManager> remoteManager) override;
   bool HasFramesToTransmit (void) override;
-  void NotifyInternalCollision (void) override;
   void NotifyChannelAccessed (Time txopDuration) override;
   void NotifyChannelReleased (void) override;
   void SetDroppedMpduCallback (DroppedMpdu callback) override;
@@ -98,6 +98,13 @@ public:
    * \param qosFem the associated QoS Frame Exchange Manager.
    */
   void SetQosFrameExchangeManager (const Ptr<QosFrameExchangeManager> qosFem);
+
+  /**
+   * Get the access category of this object.
+   *
+   * \return the access category.
+   */
+  AcIndex GetAccessCategory (void) const;
 
   /**
    * Return true if an explicit BlockAckRequest is sent after a missed BlockAck
@@ -210,13 +217,6 @@ public:
    * \param tid traffic ID
    */
   void ResetBa (Mac48Address recipient, uint8_t tid);
-
-  /**
-   * Set the access category of this EDCAF.
-   *
-   * \param ac access category.
-   */
-  void SetAccessCategory (AcIndex ac);
 
   /**
    * \param packet packet to send.
@@ -332,7 +332,7 @@ public:
    * \param recipient the receiver station address.
    * \returns the peeked frame.
    */
-  Ptr<const WifiMacQueueItem> PeekNextMpdu (WifiMacQueueItem::QueueIteratorPair queueIt,
+  Ptr<const WifiMacQueueItem> PeekNextMpdu (WifiMacQueueItem::ConstIterator queueIt,
                                             uint8_t tid = 8,
                                             Mac48Address recipient = Mac48Address::GetBroadcast ());
   /**
@@ -351,14 +351,14 @@ public:
                           (including protection and acknowledgment); a value of
    *                      Time::Min() indicates no time constraint
    * \param initialFrame true if the frame is the initial PPDU of a TXOP
-   * \param[out] queueIt a QueueIteratorPair pointing to the queue item following the
+   * \param[out] queueIt a queue iterator pointing to the queue item following the
    *                     last item used to prepare the returned MPDU, if any; if no MPDU
    *                     is returned, its value is unchanged
    * \return the frame to transmit or a null pointer if no frame meets the time constraints
    */
   Ptr<WifiMacQueueItem> GetNextMpdu (Ptr<const WifiMacQueueItem> peekedItem, WifiTxParameters& txParams,
                                      Time availableTime, bool initialFrame,
-                                     WifiMacQueueItem::QueueIteratorPair& queueIt);
+                                     WifiMacQueueItem::ConstIterator& queueIt);
 
   /**
    * Assign a sequence number to the given MPDU, if it is not a fragment
@@ -369,11 +369,14 @@ public:
   void AssignSequenceNumber (Ptr<WifiMacQueueItem> mpdu) const;
 
   /**
-   * Set the Queue Size subfield of the QoS Control field of the given QoS data frame.
+   * Get the value for the Queue Size subfield of the QoS Control field of a
+   * QoS data frame of the given TID and addressed to the given receiver.
    *
-   * \param mpdu the given QoS data frame
+   * \param tid the Traffic ID
+   * \param receiver the address of the given receiver
+   * \return the value for the Queue Size subfield
    */
-  void SetQosQueueSize (Ptr<WifiMacQueueItem> mpdu);
+  uint8_t GetQosQueueSize (uint8_t tid, Mac48Address receiver) const;
 
   /**
    * Return true if a TXOP has started.
@@ -387,6 +390,75 @@ public:
    * \return the remaining duration in the current TXOP.
    */
   virtual Time GetRemainingTxop (void) const;
+
+  /**
+   * Set the minimum contention window size to use while the MU EDCA Timer
+   * is running.
+   *
+   * \param cwMin the minimum contention window size.
+   */
+  void SetMuCwMin (uint16_t cwMin);
+  /**
+   * Set the maximum contention window size to use while the MU EDCA Timer
+   * is running.
+   *
+   * \param cwMax the maximum contention window size.
+   */
+  void SetMuCwMax (uint16_t cwMax);
+  /**
+   * Set the number of slots that make up an AIFS while the MU EDCA Timer
+   * is running.
+   *
+   * \param aifsn the number of slots that make up an AIFS.
+   */
+  void SetMuAifsn (uint8_t aifsn);
+  /**
+   * Set the MU EDCA Timer.
+   *
+   * \param timer the timer duration.
+   */
+  void SetMuEdcaTimer (Time timer);
+  /**
+   * Start the MU EDCA Timer.
+   */
+  void StartMuEdcaTimerNow (void);
+  /**
+   * Return true if the MU EDCA Timer is running, false otherwise.
+   *
+   * \return whether the MU EDCA Timer is running
+   */
+  bool MuEdcaTimerRunning (void) const;
+  /**
+   * Return true if the EDCA is disabled (the MU EDCA Timer is running and the
+   * MU AIFSN is zero), false otherwise.
+   *
+   * \return whether the EDCA is disabled
+   */
+  bool EdcaDisabled (void) const;
+  /**
+   * Return the minimum contention window size from the EDCA Parameter Set
+   * or the MU EDCA Parameter Set, depending on whether the MU EDCA Timer is
+   * running or not.
+   *
+   * \return the currently used minimum contention window size.
+   */
+  uint32_t GetMinCw (void) const override;
+  /**
+   * Return the maximum contention window size from the EDCA Parameter Set
+   * or the MU EDCA Parameter Set, depending on whether the MU EDCA Timer is
+   * running or not.
+   *
+   * \return the currently used maximum contention window size.
+   */
+  uint32_t GetMaxCw (void) const override;
+  /**
+   * Return the number of slots that make up an AIFS according to the
+   * EDCA Parameter Set or the MU EDCA Parameter Set, depending on whether the
+   * MU EDCA Timer is running or not.
+   *
+   * \return the number of slots that currently make up an AIFS.
+   */
+  uint8_t GetAifsn (void) const override;
 
 protected:
   void DoDispose (void) override;
@@ -421,6 +493,12 @@ private:
   Time m_addBaResponseTimeout;                          //!< timeout for ADDBA response
   Time m_failedAddBaTimeout;                            //!< timeout after failed BA agreement
   bool m_useExplicitBarAfterMissedBlockAck;             //!< flag whether explicit BlockAckRequest should be sent upon missed BlockAck Response
+
+  uint32_t m_muCwMin;          //!< the MU CW minimum
+  uint32_t m_muCwMax;          //!< the MU CW maximum
+  uint8_t m_muAifsn;           //!< the MU AIFSN
+  Time m_muEdcaTimer;          //!< the MU EDCA Timer
+  Time m_muEdcaTimerStartTime; //!< last start time of the MU EDCA Timer
 
   TracedCallback<Time, Time> m_txopTrace; //!< TXOP trace callback
 };

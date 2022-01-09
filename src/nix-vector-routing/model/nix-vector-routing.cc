@@ -1,6 +1,7 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2009 The Georgia Institute of Technology 
+ * Copyright (c) 2009 The Georgia Institute of Technology
+ * Copyright (c) 2021 NITK Surathkal
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -14,8 +15,12 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * 
+ * This file is adapted from the old ipv4-nix-vector-routing.cc.
  *
  * Authors: Josh Pelkey <jpelkey@gatech.edu>
+ * 
+ * Modified by: Ameya Deshpande <ameyanrd@outlook.com>
  */
 
 #include <queue>
@@ -27,110 +32,155 @@
 #include "ns3/ipv4-list-routing.h"
 #include "ns3/loopback-net-device.h"
 
-#include "ipv4-nix-vector-routing.h"
+#include "nix-vector-routing.h"
 
 namespace ns3 {
 
-NS_LOG_COMPONENT_DEFINE ("Ipv4NixVectorRouting");
+NS_LOG_COMPONENT_DEFINE ("NixVectorRouting");
 
-NS_OBJECT_ENSURE_REGISTERED (Ipv4NixVectorRouting);
+NS_OBJECT_TEMPLATE_CLASS_DEFINE (NixVectorRouting, Ipv4RoutingProtocol);
+NS_OBJECT_TEMPLATE_CLASS_DEFINE (NixVectorRouting, Ipv6RoutingProtocol);
 
-bool Ipv4NixVectorRouting::g_isCacheDirty = false;
-Ipv4NixVectorRouting::Ipv4AddressToNodeMap Ipv4NixVectorRouting::g_ipv4AddressToNodeMap;
+template <typename T>
+bool NixVectorRouting<T>::g_isCacheDirty = false;
 
+template <typename T>
+typename NixVectorRouting<T>::IpAddressToNodeMap NixVectorRouting<T>::g_ipAddressToNodeMap;
+
+template <typename T>
+typename NixVectorRouting<T>::NetDeviceToIpInterfaceMap NixVectorRouting<T>::g_netdeviceToIpInterfaceMap;
+
+template <typename T>
 TypeId 
-Ipv4NixVectorRouting::GetTypeId (void)
+NixVectorRouting<T>::GetTypeId (void)
 {
-  static TypeId tid = TypeId ("ns3::Ipv4NixVectorRouting")
-    .SetParent<Ipv4RoutingProtocol> ()
+  std::string Tname = GetTypeParamName<NixVectorRouting<T> > ();
+  std::string name = (Tname == "Ipv4RoutingProtocol" ? "Ipv4" : "Ipv6");
+  static TypeId tid = TypeId (("ns3::" + name + "NixVectorRouting").c_str ())
+    .SetParent<T> ()
     .SetGroupName ("NixVectorRouting")
-    .AddConstructor<Ipv4NixVectorRouting> ()
+    .template AddConstructor<NixVectorRouting<T> > ()
   ;
   return tid;
 }
 
-Ipv4NixVectorRouting::Ipv4NixVectorRouting ()
+template <typename T>
+NixVectorRouting<T>::NixVectorRouting ()
   : m_totalNeighbors (0)
 {
   NS_LOG_FUNCTION_NOARGS ();
 }
 
-Ipv4NixVectorRouting::~Ipv4NixVectorRouting ()
+template <typename T>
+NixVectorRouting<T>::~NixVectorRouting ()
 {
   NS_LOG_FUNCTION_NOARGS ();
 }
 
+template <typename T>
 void
-Ipv4NixVectorRouting::SetIpv4 (Ptr<Ipv4> ipv4)
+NixVectorRouting<T>::SetIpv4 (Ptr<Ip> ipv4)
 {
   NS_ASSERT (ipv4 != 0);
-  NS_ASSERT (m_ipv4 == 0);
+  NS_ASSERT (m_ip == 0);
   NS_LOG_DEBUG ("Created Ipv4NixVectorProtocol");
 
-  m_ipv4 = ipv4;
+  m_ip = ipv4;
 }
 
+template <typename T>
+void
+NixVectorRouting<T>::SetIpv6 (Ptr<Ip> ipv6)
+{
+  NS_ASSERT (ipv6 != 0);
+  NS_ASSERT (m_ip == 0);
+  NS_LOG_DEBUG ("Created Ipv6NixVectorProtocol");
+
+  m_ip = ipv6;
+}
+
+template <typename T>
+void
+NixVectorRouting<T>::DoInitialize ()
+{
+  NS_LOG_FUNCTION (this);
+
+  for (uint32_t i = 0 ; i < m_ip->GetNInterfaces (); i++)
+    {
+      m_ip->SetForwarding (i, true);
+    }
+
+  T::DoInitialize ();
+}
+
+template <typename T>
 void 
-Ipv4NixVectorRouting::DoDispose ()
+NixVectorRouting<T>::DoDispose ()
 {
   NS_LOG_FUNCTION_NOARGS ();
 
   m_node = 0;
-  m_ipv4 = 0;
+  m_ip = 0;
 
-  Ipv4RoutingProtocol::DoDispose ();
+  T::DoDispose ();
 }
 
-
+template <typename T>
 void
-Ipv4NixVectorRouting::SetNode (Ptr<Node> node)
+NixVectorRouting<T>::SetNode (Ptr<Node> node)
 {
   NS_LOG_FUNCTION_NOARGS ();
 
   m_node = node;
 }
 
+template <typename T>
 void
-Ipv4NixVectorRouting::FlushGlobalNixRoutingCache (void) const
+NixVectorRouting<T>::FlushGlobalNixRoutingCache (void) const
 {
   NS_LOG_FUNCTION_NOARGS ();
+
   NodeList::Iterator listEnd = NodeList::End ();
   for (NodeList::Iterator i = NodeList::Begin (); i != listEnd; i++)
     {
       Ptr<Node> node = *i;
-      Ptr<Ipv4NixVectorRouting> rp = node->GetObject<Ipv4NixVectorRouting> ();
+      Ptr<NixVectorRouting<T> > rp = node->GetObject<NixVectorRouting> ();
       if (!rp)
         {
           continue;
         }
       NS_LOG_LOGIC ("Flushing Nix caches.");
       rp->FlushNixCache ();
-      rp->FlushIpv4RouteCache ();
+      rp->FlushIpRouteCache ();
+      rp->m_totalNeighbors = 0;
     }
 
-  // IPv4 address to node mapping is potentially invalid so clear it.
+  // IP address to node mapping is potentially invalid so clear it.
   // Will be repopulated in lazy evaluation when mapping is needed.
-  g_ipv4AddressToNodeMap.clear ();
+  g_ipAddressToNodeMap.clear ();
 }
 
+template <typename T>
 void
-Ipv4NixVectorRouting::FlushNixCache (void) const
+NixVectorRouting<T>::FlushNixCache (void) const
 {
   NS_LOG_FUNCTION_NOARGS ();
   m_nixCache.clear ();
 }
 
+template <typename T>
 void
-Ipv4NixVectorRouting::FlushIpv4RouteCache (void) const
+NixVectorRouting<T>::FlushIpRouteCache (void) const
 {
   NS_LOG_FUNCTION_NOARGS ();
-  m_ipv4RouteCache.clear ();
+  m_ipRouteCache.clear ();
 }
 
+template <typename T>
 Ptr<NixVector>
-Ipv4NixVectorRouting::GetNixVector (Ptr<Node> source, Ipv4Address dest, Ptr<NetDevice> oif) const
+NixVectorRouting<T>::GetNixVector (Ptr<Node> source, IpAddress dest, Ptr<NetDevice> oif) const
 {
-  NS_LOG_FUNCTION_NOARGS ();
+  NS_LOG_FUNCTION (this << source << dest << oif);
 
   Ptr<NixVector> nixVector = Create<NixVector> ();
 
@@ -158,49 +208,60 @@ Ipv4NixVectorRouting::GetNixVector (Ptr<Node> source, Ipv4Address dest, Ptr<NetD
       // and build the nix vector
       std::vector< Ptr<Node> > parentVector;
 
-      BFS (NodeList::GetNNodes (), source, destNode, parentVector, oif);
-
-      if (BuildNixVector (parentVector, source->GetId (), destNode->GetId (), nixVector))
+      if (BFS (NodeList::GetNNodes (), source, destNode, parentVector, oif))
         {
-          return nixVector;
+          if (BuildNixVector (parentVector, source->GetId (), destNode->GetId (), nixVector))
+            {
+              return nixVector;
+            }
+          else
+            {
+              NS_LOG_ERROR ("No routing path exists");
+              return 0;
+            }
         }
       else
         {
           NS_LOG_ERROR ("No routing path exists");
           return 0;
         }
+
     }
 }
 
+template <typename T>
 Ptr<NixVector>
-Ipv4NixVectorRouting::GetNixVectorInCache (Ipv4Address address) const
+NixVectorRouting<T>::GetNixVectorInCache (const IpAddress &address, bool &foundInCache) const
 {
-  NS_LOG_FUNCTION_NOARGS ();
+  NS_LOG_FUNCTION (this << address);
 
   CheckCacheStateAndFlush ();
 
-  NixMap_t::iterator iter = m_nixCache.find (address);
+  typename NixMap_t::iterator iter = m_nixCache.find (address);
   if (iter != m_nixCache.end ())
     {
       NS_LOG_LOGIC ("Found Nix-vector in cache.");
+      foundInCache = true;
       return iter->second;
     }
 
   // not in cache
+  foundInCache = false;
   return 0;
 }
 
-Ptr<Ipv4Route>
-Ipv4NixVectorRouting::GetIpv4RouteInCache (Ipv4Address address)
+template <typename T>
+Ptr<typename NixVectorRouting<T>::IpRoute>
+NixVectorRouting<T>::GetIpRouteInCache (IpAddress address)
 {
-  NS_LOG_FUNCTION_NOARGS ();
+  NS_LOG_FUNCTION (this << address);
 
   CheckCacheStateAndFlush ();
 
-  Ipv4RouteMap_t::iterator iter = m_ipv4RouteCache.find (address);
-  if (iter != m_ipv4RouteCache.end ())
+  typename IpRouteMap_t::iterator iter = m_ipRouteCache.find (address);
+  if (iter != m_ipRouteCache.end ())
     {
-      NS_LOG_LOGIC ("Found Ipv4Route in cache.");
+      NS_LOG_LOGIC ("Found IpRoute in cache.");
       return iter->second;
     }
 
@@ -208,8 +269,9 @@ Ipv4NixVectorRouting::GetIpv4RouteInCache (Ipv4Address address)
   return 0;
 }
 
+template <typename T>
 bool
-Ipv4NixVectorRouting::BuildNixVectorLocal (Ptr<NixVector> nixVector)
+NixVectorRouting<T>::BuildNixVectorLocal (Ptr<NixVector> nixVector)
 {
   NS_LOG_FUNCTION_NOARGS ();
 
@@ -218,12 +280,13 @@ Ipv4NixVectorRouting::BuildNixVectorLocal (Ptr<NixVector> nixVector)
   // here we are building a nix vector to 
   // ourself, so we need to find the loopback 
   // interface and add that to the nix vector
-  Ipv4Address loopback ("127.0.0.1");
+
   for (uint32_t i = 0; i < numberOfDevices; i++)
     {
-      uint32_t interfaceIndex = (m_ipv4)->GetInterfaceForDevice (m_node->GetDevice (i));
-      Ipv4InterfaceAddress ifAddr = m_ipv4->GetAddress (interfaceIndex, 0);
-      if (ifAddr.GetLocal () == loopback)
+      uint32_t interfaceIndex = (m_ip)->GetInterfaceForDevice (m_node->GetDevice (i));
+      IpInterfaceAddress ifAddr = m_ip->GetAddress (interfaceIndex, 0);
+      IpAddress ifAddrValue = ifAddr.GetAddress ();
+      if (ifAddrValue.IsLocalhost ())
         {
           NS_LOG_LOGIC ("Adding loopback to nix.");
           NS_LOG_LOGIC ("Adding Nix: " << i << " with " << nixVector->BitCount (numberOfDevices) 
@@ -235,10 +298,11 @@ Ipv4NixVectorRouting::BuildNixVectorLocal (Ptr<NixVector> nixVector)
   return false;
 }
 
+template <typename T>
 bool
-Ipv4NixVectorRouting::BuildNixVector (const std::vector< Ptr<Node> > & parentVector, uint32_t source, uint32_t dest, Ptr<NixVector> nixVector) const
+NixVectorRouting<T>::BuildNixVector (const std::vector< Ptr<Node> > & parentVector, uint32_t source, uint32_t dest, Ptr<NixVector> nixVector) const
 {
-  NS_LOG_FUNCTION_NOARGS ();
+  NS_LOG_FUNCTION (this << parentVector << source << dest << nixVector);
 
   if (source == dest)
     {
@@ -256,7 +320,7 @@ Ipv4NixVectorRouting::BuildNixVector (const std::vector< Ptr<Node> > & parentVec
   uint32_t destId = 0;
   uint32_t totalNeighbors = 0;
 
-  // scan through the net devices on the parent node
+  // scan through the net devices on the T node
   // and then look at the nodes adjacent to them
   for (uint32_t i = 0; i < numberOfDevices; i++)
     {
@@ -302,22 +366,81 @@ Ipv4NixVectorRouting::BuildNixVector (const std::vector< Ptr<Node> > & parentVec
                                << nixVector->BitCount (totalNeighbors) << " bits, for node " << parentNode->GetId ());
   nixVector->AddNeighborIndex (destId, nixVector->BitCount (totalNeighbors));
 
-  // recurse through parent vector, grabbing the path 
+  // recurse through T vector, grabbing the path
   // and building the nix vector
   BuildNixVector (parentVector, source, (parentVector.at (dest))->GetId (), nixVector);
   return true;
 }
 
+template <typename T>
 void
-Ipv4NixVectorRouting::GetAdjacentNetDevices (Ptr<NetDevice> netDevice, Ptr<Channel> channel, NetDeviceContainer & netDeviceContainer) const
+NixVectorRouting<T>::GetAdjacentNetDevices (Ptr<NetDevice> netDevice, Ptr<Channel> channel, NetDeviceContainer & netDeviceContainer) const
 {
-  NS_LOG_FUNCTION_NOARGS ();
+  NS_LOG_FUNCTION (this << netDevice << channel);
+
+  Ptr<IpInterface> netDeviceInterface = GetInterfaceByNetDevice (netDevice);
+  if (netDeviceInterface == 0 || !netDeviceInterface->IsUp ())
+    {
+      NS_LOG_LOGIC ("IpInterface either doesn't exist or is down");
+      return;
+    }
+
+  uint32_t netDeviceAddresses = netDeviceInterface->GetNAddresses ();
 
   for (std::size_t i = 0; i < channel->GetNDevices (); i++)
     {
       Ptr<NetDevice> remoteDevice = channel->GetDevice (i);
       if (remoteDevice != netDevice)
         {
+          // Compare if the remoteDevice shares a common subnet with remoteDevice
+          Ptr<IpInterface> remoteDeviceInterface = GetInterfaceByNetDevice (remoteDevice);
+          if (remoteDeviceInterface == 0 || !remoteDeviceInterface->IsUp ())
+            {
+              NS_LOG_LOGIC ("IpInterface either doesn't exist or is down");
+              continue;
+            }
+
+          uint32_t remoteDeviceAddresses = remoteDeviceInterface->GetNAddresses ();
+          bool commonSubnetFound = false;
+
+          for (uint32_t j = 0; j < netDeviceAddresses; ++j)
+            {
+              IpInterfaceAddress netDeviceIfAddr = netDeviceInterface->GetAddress (j);
+              if constexpr (!IsIpv4::value)
+                {
+                  if (netDeviceIfAddr.GetScope () == Ipv6InterfaceAddress::LINKLOCAL)
+                    {
+                      continue;
+                    }
+                }
+              for (uint32_t k = 0; k < remoteDeviceAddresses; ++k)
+                {
+                  IpInterfaceAddress remoteDeviceIfAddr = remoteDeviceInterface->GetAddress (k);
+                  if constexpr (!IsIpv4::value)
+                    {
+                      if (remoteDeviceIfAddr.GetScope () == Ipv6InterfaceAddress::LINKLOCAL)
+                        {
+                          continue;
+                        }
+                    }
+                  if (netDeviceIfAddr.IsInSameSubnet (remoteDeviceIfAddr.GetAddress ()))
+                    {
+                      commonSubnetFound = true;
+                      break;
+                    }
+                }
+
+              if (commonSubnetFound)
+                {
+                  break;
+                }
+            }
+
+          if (!commonSubnetFound)
+            {
+              continue;
+            }
+
           Ptr<BridgeNetDevice> bd = NetDeviceIsBridged (remoteDevice);
           // we have a bridged device, we need to add all 
           // bridged devices
@@ -348,17 +471,18 @@ Ipv4NixVectorRouting::GetAdjacentNetDevices (Ptr<NetDevice> netDevice, Ptr<Chann
     }
 }
 
+template <typename T>
 void
-Ipv4NixVectorRouting::BuildIpv4AddressToNodeMap (void) const
+NixVectorRouting<T>::BuildIpAddressToNodeMap (void) const
 {
   NS_LOG_FUNCTION_NOARGS ();
 
   for (NodeList::Iterator it = NodeList::Begin (); it != NodeList::End (); ++it)
     {
       Ptr<Node> node = *it;
-      Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
+      Ptr<IpL3Protocol> ip = node->GetObject<IpL3Protocol> ();
 
-      if(ipv4)
+      if(ip)
         {
           uint32_t numberOfDevices = node->GetNDevices ();
 
@@ -366,23 +490,25 @@ Ipv4NixVectorRouting::BuildIpv4AddressToNodeMap (void) const
             {
               Ptr<NetDevice> device = node->GetDevice (deviceId);
 
-              // If this is not a loopback device add the IPv4 address to the map
+              // If this is not a loopback device add the IP address to the map
               if ( !DynamicCast<LoopbackNetDevice>(device) )
                 {
-                  int32_t interfaceIndex = (ipv4)->GetInterfaceForDevice (node->GetDevice (deviceId));
+                  int32_t interfaceIndex = (ip)->GetInterfaceForDevice (node->GetDevice (deviceId));
                   if (interfaceIndex != -1)
                     {
-                      uint32_t numberOfAddresses = ipv4->GetNAddresses (interfaceIndex);
+                      g_netdeviceToIpInterfaceMap[device] = (ip)->GetInterface (interfaceIndex);
+
+                      uint32_t numberOfAddresses = ip->GetNAddresses (interfaceIndex);
                       for (uint32_t addressIndex = 0; addressIndex < numberOfAddresses; addressIndex++)
                         {
-                          Ipv4InterfaceAddress ifAddr = ipv4->GetAddress (interfaceIndex, addressIndex);
-                          Ipv4Address addr = ifAddr.GetLocal ();
+                          IpInterfaceAddress ifAddr = ip->GetAddress (interfaceIndex, addressIndex);
+                          IpAddress addr = ifAddr.GetAddress ();
 
-                          NS_ABORT_MSG_IF (g_ipv4AddressToNodeMap.count (addr),
-                                          "Duplicate IPv4 address (" << addr << ") found during NIX Vector map construction for node " << node->GetId ());
+                          NS_ABORT_MSG_IF (g_ipAddressToNodeMap.count (addr),
+                                          "Duplicate IP address (" << addr << ") found during NIX Vector map construction for node " << node->GetId ());
 
-                          NS_LOG_LOGIC ("Adding IPv4 address " << addr << " for node " << node->GetId () << " to NIX Vector IPv4 address to node map");
-                          g_ipv4AddressToNodeMap[addr] = node;
+                          NS_LOG_LOGIC ("Adding IP address " << addr << " for node " << node->GetId () << " to NIX Vector IP address to node map");
+                          g_ipAddressToNodeMap[addr] = node;
                         }
                     }
                 }
@@ -391,22 +517,23 @@ Ipv4NixVectorRouting::BuildIpv4AddressToNodeMap (void) const
     }
 }
 
+template <typename T>
 Ptr<Node>
-Ipv4NixVectorRouting::GetNodeByIp (Ipv4Address dest) const
+NixVectorRouting<T>::GetNodeByIp (IpAddress dest) const
 {
-  NS_LOG_FUNCTION_NOARGS ();
+  NS_LOG_FUNCTION (this << dest);
 
   // Populate lookup table if is empty.
-  if ( g_ipv4AddressToNodeMap.empty () )
+  if ( g_ipAddressToNodeMap.empty () )
     {
-      BuildIpv4AddressToNodeMap ();
+      BuildIpAddressToNodeMap ();
     }
 
   Ptr<Node> destNode;
 
-  Ipv4AddressToNodeMap::iterator iter = g_ipv4AddressToNodeMap.find(dest);
+  typename IpAddressToNodeMap::iterator iter = g_ipAddressToNodeMap.find(dest);
 
-  if(iter == g_ipv4AddressToNodeMap.end ())
+  if(iter == g_ipAddressToNodeMap.end ())
     {
       NS_LOG_ERROR ("Couldn't find dest node given the IP" << dest);
       destNode = 0;
@@ -419,13 +546,43 @@ Ipv4NixVectorRouting::GetNodeByIp (Ipv4Address dest) const
   return destNode;
 }
 
-uint32_t
-Ipv4NixVectorRouting::FindTotalNeighbors (Ptr<Node> node) const
+template <typename T>
+Ptr<typename NixVectorRouting<T>::IpInterface>
+NixVectorRouting<T>::GetInterfaceByNetDevice (Ptr<NetDevice> netDevice) const
 {
+  // Populate lookup table if is empty.
+  if ( g_netdeviceToIpInterfaceMap.empty () )
+    {
+      BuildIpAddressToNodeMap ();
+    }
+
+  Ptr<IpInterface> ipInterface;
+
+  typename NetDeviceToIpInterfaceMap::iterator iter = g_netdeviceToIpInterfaceMap.find(netDevice);
+
+  if(iter == g_netdeviceToIpInterfaceMap.end ())
+    {
+      NS_LOG_ERROR ("Couldn't find IpInterface node given the NetDevice" << netDevice);
+      ipInterface = 0;
+    }
+  else
+    {
+      ipInterface = iter -> second;
+    }
+
+  return ipInterface;
+}
+
+template <typename T>
+uint32_t
+NixVectorRouting<T>::FindTotalNeighbors (Ptr<Node> node) const
+{
+  NS_LOG_FUNCTION (this << node);
+
   uint32_t numberOfDevices = node->GetNDevices ();
   uint32_t totalNeighbors = 0;
 
-  // scan through the net devices on the parent node
+  // scan through the net devices on the T node
   // and then look at the nodes adjacent to them
   for (uint32_t i = 0; i < numberOfDevices; i++)
     {
@@ -450,10 +607,11 @@ Ipv4NixVectorRouting::FindTotalNeighbors (Ptr<Node> node) const
   return totalNeighbors;
 }
 
+template <typename T>
 Ptr<BridgeNetDevice>
-Ipv4NixVectorRouting::NetDeviceIsBridged (Ptr<NetDevice> nd) const
+NixVectorRouting<T>::NetDeviceIsBridged (Ptr<NetDevice> nd) const
 {
-  NS_LOG_FUNCTION (nd);
+  NS_LOG_FUNCTION (this << nd);
 
   Ptr<Node> node = nd->GetNode ();
   uint32_t nDevices = node->GetNDevices ();
@@ -473,7 +631,7 @@ Ipv4NixVectorRouting::NetDeviceIsBridged (Ptr<NetDevice> nd) const
         {
           NS_LOG_LOGIC ("device " << i << " is a bridge net device");
           Ptr<BridgeNetDevice> bnd = ndTest->GetObject<BridgeNetDevice> ();
-          NS_ABORT_MSG_UNLESS (bnd, "Ipv4NixVectorRouting::NetDeviceIsBridged (): GetObject for <BridgeNetDevice> failed");
+          NS_ABORT_MSG_UNLESS (bnd, "NixVectorRouting::NetDeviceIsBridged (): GetObject for <BridgeNetDevice> failed");
 
           for (uint32_t j = 0; j < bnd->GetNBridgePorts (); ++j)
             {
@@ -490,9 +648,12 @@ Ipv4NixVectorRouting::NetDeviceIsBridged (Ptr<NetDevice> nd) const
   return 0;
 }
 
+template <typename T>
 uint32_t
-Ipv4NixVectorRouting::FindNetDeviceForNixIndex (Ptr<Node> node, uint32_t nodeIndex, Ipv4Address & gatewayIp) const
+NixVectorRouting<T>::FindNetDeviceForNixIndex (Ptr<Node> node, uint32_t nodeIndex, IpAddress & gatewayIp) const
 {
+  NS_LOG_FUNCTION (this << node << nodeIndex << gatewayIp);
+
   uint32_t numberOfDevices = node->GetNDevices ();
   uint32_t index = 0;
   uint32_t totalNeighbors = 0;
@@ -522,12 +683,9 @@ Ipv4NixVectorRouting::FindNetDeviceForNixIndex (Ptr<Node> node, uint32_t nodeInd
           // found the proper net device
           index = i;
           Ptr<NetDevice> gatewayDevice = netDeviceContainer.Get (nodeIndex-totalNeighbors);
-          Ptr<Node> gatewayNode = gatewayDevice->GetNode ();
-          Ptr<Ipv4> ipv4 = gatewayNode->GetObject<Ipv4> ();
-
-          uint32_t interfaceIndex = (ipv4)->GetInterfaceForDevice (gatewayDevice);
-          Ipv4InterfaceAddress ifAddr = ipv4->GetAddress (interfaceIndex, 0);
-          gatewayIp = ifAddr.GetLocal ();
+          Ptr<IpInterface> gatewayInterface = GetInterfaceByNetDevice (gatewayDevice);
+          IpInterfaceAddress ifAddr = gatewayInterface->GetAddress (0);
+          gatewayIp = ifAddr.GetAddress ();
           break;
         }
       totalNeighbors += netDeviceContainer.GetN ();
@@ -536,30 +694,50 @@ Ipv4NixVectorRouting::FindNetDeviceForNixIndex (Ptr<Node> node, uint32_t nodeInd
   return index;
 }
 
-Ptr<Ipv4Route> 
-Ipv4NixVectorRouting::RouteOutput (Ptr<Packet> p, const Ipv4Header &header, Ptr<NetDevice> oif, Socket::SocketErrno &sockerr)
+template <typename T>
+Ptr<typename NixVectorRouting<T>::IpRoute>
+NixVectorRouting<T>::RouteOutput (Ptr<Packet> p, const IpHeader &header, Ptr<NetDevice> oif, Socket::SocketErrno &sockerr)
 {
-  NS_LOG_FUNCTION_NOARGS ();
-  Ptr<Ipv4Route> rtentry;
+  NS_LOG_FUNCTION (this << header << oif);
+
+  Ptr<IpRoute> rtentry;
   Ptr<NixVector> nixVectorInCache;
   Ptr<NixVector> nixVectorForPacket;
 
   CheckCacheStateAndFlush ();
 
-  NS_LOG_DEBUG ("Dest IP from header: " << header.GetDestination ());
-  // check if cache
-  nixVectorInCache = GetNixVectorInCache (header.GetDestination ());
+  IpAddress destAddress = header.GetDestination ();
+
+  NS_LOG_DEBUG ("Dest IP from header: " << destAddress);
+
+  if constexpr (!IsIpv4::value)
+    {
+      /* when sending on link-local multicast, there have to be interface specified */
+      if (destAddress.IsLinkLocalMulticast ())
+        {
+          NS_ASSERT_MSG (oif, "Try to send on link-local multicast address, and no interface index is given!");
+          rtentry = Create<IpRoute> ();
+          rtentry->SetSource (m_ip->SourceAddressSelection (m_ip->GetInterfaceForDevice (oif), destAddress));
+          rtentry->SetDestination (destAddress);
+          rtentry->SetGateway (Ipv6Address::GetZero ());
+          rtentry->SetOutputDevice (oif);
+          return rtentry;
+        }
+    }
+  // Check the Nix cache
+  bool foundInCache = false;
+  nixVectorInCache = GetNixVectorInCache (destAddress, foundInCache);
 
   // not in cache
-  if (!nixVectorInCache)
+  if (!foundInCache)
     {
       NS_LOG_LOGIC ("Nix-vector not in cache, build: ");
       // Build the nix-vector, given this node and the
       // dest IP address
-      nixVectorInCache = GetNixVector (m_node, header.GetDestination (), oif);
+      nixVectorInCache = GetNixVector (m_node, destAddress, oif);
 
       // cache it
-      m_nixCache.insert (NixMap_t::value_type (header.GetDestination (), nixVectorInCache));
+      m_nixCache.insert (typename NixMap_t::value_type (destAddress, nixVectorInCache));
     }
 
   // path exists
@@ -567,9 +745,9 @@ Ipv4NixVectorRouting::RouteOutput (Ptr<Packet> p, const Ipv4Header &header, Ptr<
     {
       NS_LOG_LOGIC ("Nix-vector contents: " << *nixVectorInCache);
 
-      // create a new nix vector to be used, 
+      // create a new nix vector to be used,
       // we want to keep the cached version clean
-      nixVectorForPacket = nixVectorInCache->Copy (); 
+      nixVectorForPacket = nixVectorInCache->Copy ();
 
       // Get the interface number that we go out of, by extracting
       // from the nix-vector
@@ -583,9 +761,9 @@ Ipv4NixVectorRouting::RouteOutput (Ptr<Packet> p, const Ipv4Header &header, Ptr<
       uint32_t numberOfBits = nixVectorForPacket->BitCount (m_totalNeighbors);
       uint32_t nodeIndex = nixVectorForPacket->ExtractNeighborIndex (numberOfBits);
 
-      // Search here in a cache for this node index 
-      // and look for a Ipv4Route
-      rtentry = GetIpv4RouteInCache (header.GetDestination ());
+      // Search here in a cache for this node index
+      // and look for a IpRoute
+      rtentry = GetIpRouteInCache (destAddress);
 
       if (!rtentry || !(rtentry->GetOutputDevice () == oif))
         {
@@ -596,37 +774,37 @@ Ipv4NixVectorRouting::RouteOutput (Ptr<Packet> p, const Ipv4Header &header, Ptr<
           // rtentry from the map
           if (rtentry)
             {
-              m_ipv4RouteCache.erase (header.GetDestination ());
+              m_ipRouteCache.erase (destAddress);
             }
 
-          NS_LOG_LOGIC ("Ipv4Route not in cache, build: ");
-          Ipv4Address gatewayIp;
+          NS_LOG_LOGIC ("IpRoute not in cache, build: ");
+          IpAddress gatewayIp;
           uint32_t index = FindNetDeviceForNixIndex (m_node, nodeIndex, gatewayIp);
           int32_t interfaceIndex = 0;
 
           if (!oif)
             {
-              interfaceIndex = (m_ipv4)->GetInterfaceForDevice (m_node->GetDevice (index));
+              interfaceIndex = (m_ip)->GetInterfaceForDevice (m_node->GetDevice (index));
             }
           else
             {
-              interfaceIndex = (m_ipv4)->GetInterfaceForDevice (oif);
+              interfaceIndex = (m_ip)->GetInterfaceForDevice (oif);
             }
 
           NS_ASSERT_MSG (interfaceIndex != -1, "Interface index not found for device");
 
-          Ipv4Address sourceIPAddr = m_ipv4->SourceAddressSelection (interfaceIndex, header.GetDestination ());
+          IpAddress sourceIPAddr = m_ip->SourceAddressSelection (interfaceIndex, destAddress);
 
-          // start filling in the Ipv4Route info
-          rtentry = Create<Ipv4Route> ();
+          // start filling in the IpRoute info
+          rtentry = Create<IpRoute> ();
           rtentry->SetSource (sourceIPAddr);
 
           rtentry->SetGateway (gatewayIp);
-          rtentry->SetDestination (header.GetDestination ());
+          rtentry->SetDestination (destAddress);
 
           if (!oif)
             {
-              rtentry->SetOutputDevice (m_ipv4->GetNetDevice (interfaceIndex));
+              rtentry->SetOutputDevice (m_ip->GetNetDevice (interfaceIndex));
             }
           else
             {
@@ -636,12 +814,12 @@ Ipv4NixVectorRouting::RouteOutput (Ptr<Packet> p, const Ipv4Header &header, Ptr<
           sockerr = Socket::ERROR_NOTERROR;
 
           // add rtentry to cache
-          m_ipv4RouteCache.insert (Ipv4RouteMap_t::value_type (header.GetDestination (), rtentry));
+          m_ipRouteCache.insert (typename IpRouteMap_t::value_type (destAddress, rtentry));
         }
 
       NS_LOG_LOGIC ("Nix-vector contents: " << *nixVectorInCache << " : Remaining bits: " << nixVectorForPacket->GetRemainingBits ());
 
-      // Add  nix-vector in the packet class 
+      // Add  nix-vector in the packet class
       // make sure the packet exists first
       if (p)
         {
@@ -651,48 +829,75 @@ Ipv4NixVectorRouting::RouteOutput (Ptr<Packet> p, const Ipv4Header &header, Ptr<
     }
   else // path doesn't exist
     {
-      NS_LOG_ERROR ("No path to the dest: " << header.GetDestination ());
+      NS_LOG_ERROR ("No path to the dest: " << destAddress);
       sockerr = Socket::ERROR_NOROUTETOHOST;
     }
 
   return rtentry;
 }
 
-bool 
-Ipv4NixVectorRouting::RouteInput (Ptr<const Packet> p, const Ipv4Header &header, Ptr<const NetDevice> idev,
-                                  UnicastForwardCallback ucb, MulticastForwardCallback mcb,
-                                  LocalDeliverCallback lcb, ErrorCallback ecb)
+template <typename T>
+bool
+NixVectorRouting<T>::RouteInput (Ptr<const Packet> p, const IpHeader &header, Ptr<const NetDevice> idev,
+                                 UnicastForwardCallback ucb, MulticastForwardCallback mcb,
+                                 LocalDeliverCallback lcb, ErrorCallback ecb)
 {
-  NS_LOG_FUNCTION_NOARGS ();
+  NS_LOG_FUNCTION (this << p << header << header.GetSource () << header.GetDestination () << idev);
 
   CheckCacheStateAndFlush ();
 
-  NS_ASSERT (m_ipv4 != 0);
+  NS_ASSERT (m_ip != 0);
   // Check if input device supports IP
-  NS_ASSERT (m_ipv4->GetInterfaceForDevice (idev) >= 0);
-  uint32_t iif = m_ipv4->GetInterfaceForDevice (idev);
+  NS_ASSERT (m_ip->GetInterfaceForDevice (idev) >= 0);
+  uint32_t iif = m_ip->GetInterfaceForDevice (idev);
+  // Check if input device supports IP
+  NS_ASSERT (iif >= 0);
 
-  // Local delivery
-  if (m_ipv4->IsDestinationAddress (header.GetDestination (), iif))
+  IpAddress destAddress = header.GetDestination ();
+
+  if constexpr (IsIpv4::value)
     {
-      if (!lcb.IsNull ())
+      // Local delivery
+      if (m_ip->IsDestinationAddress (destAddress, iif))
         {
-          NS_LOG_LOGIC ("Local delivery to " << header.GetDestination ());
-          lcb (p, header, iif);
-          return true;
+          if (!lcb.IsNull ())
+            {
+              NS_LOG_LOGIC ("Local delivery to " << destAddress);
+              lcb (p, header, iif);
+              return true;
+            }
+          else
+            {
+              // The local delivery callback is null.  This may be a multicast
+              // or broadcast packet, so return false so that another
+              // multicast routing protocol can handle it.  It should be possible
+              // to extend this to explicitly check whether it is a unicast
+              // packet, and invoke the error callback if so
+              return false;
+            }
         }
-      else
+    }
+  else
+    {
+      if (destAddress.IsMulticast ())
         {
-          // The local delivery callback is null.  This may be a multicast
-          // or broadcast packet, so return false so that another
-          // multicast routing protocol can handle it.  It should be possible
-          // to extend this to explicitly check whether it is a unicast
-          // packet, and invoke the error callback if so
-          return false;
+          NS_LOG_LOGIC ("Multicast route not supported by Nix-Vector routing " << destAddress);
+          return false; // Let other routing protocols try to handle this
+        }
+
+      // Check if input device supports IP forwarding
+      if (m_ip->IsForwarding (iif) == false)
+        {
+          NS_LOG_LOGIC ("Forwarding disabled for this interface");
+          if (!ecb.IsNull ())
+            {
+              ecb (p, header, Socket::ERROR_NOROUTETOHOST);
+            }
+          return true;
         }
     }
 
-  Ptr<Ipv4Route> rtentry;
+  Ptr<IpRoute> rtentry;
 
   // Get the nix-vector from the packet
   Ptr<NixVector> nixVector = p->GetNixVector ();
@@ -709,26 +914,26 @@ Ipv4NixVectorRouting::RouteInput (Ptr<const Packet> p, const Ipv4Header &header,
   uint32_t numberOfBits = nixVector->BitCount (m_totalNeighbors);
   uint32_t nodeIndex = nixVector->ExtractNeighborIndex (numberOfBits);
 
-  rtentry = GetIpv4RouteInCache (header.GetDestination ());
+  rtentry = GetIpRouteInCache (destAddress);
   // not in cache
   if (!rtentry)
     {
-      NS_LOG_LOGIC ("Ipv4Route not in cache, build: ");
-      Ipv4Address gatewayIp;
+      NS_LOG_LOGIC ("IpRoute not in cache, build: ");
+      IpAddress gatewayIp;
       uint32_t index = FindNetDeviceForNixIndex (m_node, nodeIndex, gatewayIp);
-      uint32_t interfaceIndex = (m_ipv4)->GetInterfaceForDevice (m_node->GetDevice (index));
-      Ipv4InterfaceAddress ifAddr = m_ipv4->GetAddress (interfaceIndex, 0);
+      uint32_t interfaceIndex = (m_ip)->GetInterfaceForDevice (m_node->GetDevice (index));
+      IpInterfaceAddress ifAddr = m_ip->GetAddress (interfaceIndex, 0);
 
-      // start filling in the Ipv4Route info
-      rtentry = Create<Ipv4Route> ();
-      rtentry->SetSource (ifAddr.GetLocal ());
+      // start filling in the IpRoute info
+      rtentry = Create<IpRoute> ();
+      rtentry->SetSource (ifAddr.GetAddress ());
 
       rtentry->SetGateway (gatewayIp);
-      rtentry->SetDestination (header.GetDestination ());
-      rtentry->SetOutputDevice (m_ipv4->GetNetDevice (interfaceIndex));
+      rtentry->SetDestination (destAddress);
+      rtentry->SetOutputDevice (m_ip->GetNetDevice (interfaceIndex));
 
       // add rtentry to cache
-      m_ipv4RouteCache.insert (Ipv4RouteMap_t::value_type (header.GetDestination (), rtentry));
+      m_ipRouteCache.insert (typename IpRouteMap_t::value_type (destAddress, rtentry));
     }
 
   NS_LOG_LOGIC ("At Node " << m_node->GetId () << ", Extracting " << numberOfBits <<
@@ -738,14 +943,23 @@ Ipv4NixVectorRouting::RouteInput (Ptr<const Packet> p, const Ipv4Header &header,
   // local deliver is handled by Ipv4StaticRoutingImpl
   // so this code is never even called if the packet is
   // destined for this node.
-  ucb (rtentry, p, header);
+  if constexpr (IsIpv4::value)
+    {
+      ucb (rtentry, p, header);
+    }
+  else
+    {
+      ucb (idev, rtentry, p, header);
+    }
 
   return true;
 }
 
+template <typename T>
 void
-Ipv4NixVectorRouting::PrintRoutingTable (Ptr<OutputStreamWrapper> stream, Time::Unit unit) const
+NixVectorRouting<T>::PrintRoutingTable (Ptr<OutputStreamWrapper> stream, Time::Unit unit) const
 {
+  NS_LOG_FUNCTION_NOARGS ();
 
   CheckCacheStateAndFlush ();
 
@@ -756,36 +970,43 @@ Ipv4NixVectorRouting::PrintRoutingTable (Ptr<OutputStreamWrapper> stream, Time::
 
   *os << std::resetiosflags (std::ios::adjustfield) << std::setiosflags (std::ios::left);
 
-  *os << "Node: " << m_ipv4->GetObject<Node> ()->GetId ()
+  *os << "Node: " << m_ip->template GetObject<Node> ()->GetId ()
       << ", Time: " << Now().As (unit)
-      << ", Local time: " << m_ipv4->GetObject<Node> ()->GetLocalTime ().As (unit)
+      << ", Local time: " << m_ip->template GetObject<Node> ()->GetLocalTime ().As (unit)
       << ", Nix Routing" << std::endl;
 
   *os << "NixCache:" << std::endl;
   if (m_nixCache.size () > 0)
     {
-      *os << "Destination     NixVector" << std::endl;
-      for (NixMap_t::const_iterator it = m_nixCache.begin (); it != m_nixCache.end (); it++)
+      *os << std::setw (30) << "Destination";
+      *os << "NixVector" << std::endl;
+      for (typename NixMap_t::const_iterator it = m_nixCache.begin (); it != m_nixCache.end (); it++)
         {
           std::ostringstream dest;
           dest << it->first;
-          *os << std::setw (16) << dest.str ();
-          *os << *(it->second) << std::endl;
+          *os << std::setw (30) << dest.str ();
+          if (it->second)
+            {
+              *os << *(it->second) << std::endl;
+            }
         }
     }
-  *os << "Ipv4RouteCache:" << std::endl;
-  if (m_ipv4RouteCache.size () > 0)
+  *os << "IpRouteCache:" << std::endl;
+  if (m_ipRouteCache.size () > 0)
     {
-      *os << "Destination     Gateway         Source            OutputDevice" << std::endl;
-      for (Ipv4RouteMap_t::const_iterator it = m_ipv4RouteCache.begin (); it != m_ipv4RouteCache.end (); it++)
+      *os << std::setw (30) << "Destination";
+      *os << std::setw (30) << "Gateway";
+      *os << std::setw (30) << "Source";
+      *os << "OutputDevice" << std::endl;
+      for (typename IpRouteMap_t::const_iterator it = m_ipRouteCache.begin (); it != m_ipRouteCache.end (); it++)
         {
           std::ostringstream dest, gw, src;
           dest << it->second->GetDestination ();
-          *os << std::setw (16) << dest.str ();
+          *os << std::setw (30) << dest.str ();
           gw << it->second->GetGateway ();
-          *os << std::setw (16) << gw.str ();
+          *os << std::setw (30) << gw.str ();
           src << it->second->GetSource ();
-          *os << std::setw (16) << src.str ();
+          *os << std::setw (30) << src.str ();
           *os << "  ";
           if (Names::FindName (it->second->GetOutputDevice ()) != "")
             {
@@ -804,33 +1025,50 @@ Ipv4NixVectorRouting::PrintRoutingTable (Ptr<OutputStreamWrapper> stream, Time::
 }
 
 // virtual functions from Ipv4RoutingProtocol 
+template <typename T>
 void
-Ipv4NixVectorRouting::NotifyInterfaceUp (uint32_t i)
+NixVectorRouting<T>::NotifyInterfaceUp (uint32_t i)
 {
   g_isCacheDirty = true;
 }
+template <typename T>
 void
-Ipv4NixVectorRouting::NotifyInterfaceDown (uint32_t i)
+NixVectorRouting<T>::NotifyInterfaceDown (uint32_t i)
 {
   g_isCacheDirty = true;
 }
+template <typename T>
 void
-Ipv4NixVectorRouting::NotifyAddAddress (uint32_t interface, Ipv4InterfaceAddress address)
+NixVectorRouting<T>::NotifyAddAddress (uint32_t interface, IpInterfaceAddress address)
 {
   g_isCacheDirty = true;
 }
+template <typename T>
 void
-Ipv4NixVectorRouting::NotifyRemoveAddress (uint32_t interface, Ipv4InterfaceAddress address)
+NixVectorRouting<T>::NotifyRemoveAddress (uint32_t interface, IpInterfaceAddress address)
+{
+  g_isCacheDirty = true;
+}
+template <typename T>
+void
+NixVectorRouting<T>::NotifyAddRoute (IpAddress dst, Ipv6Prefix mask, IpAddress nextHop, uint32_t interface, IpAddress prefixToUse)
+{
+  g_isCacheDirty = true;
+}
+template <typename T>
+void
+NixVectorRouting<T>::NotifyRemoveRoute (IpAddress dst, Ipv6Prefix mask, IpAddress nextHop, uint32_t interface, IpAddress prefixToUse)
 {
   g_isCacheDirty = true;
 }
 
+template <typename T>
 bool
-Ipv4NixVectorRouting::BFS (uint32_t numberOfNodes, Ptr<Node> source, 
+NixVectorRouting<T>::BFS (uint32_t numberOfNodes, Ptr<Node> source,
                            Ptr<Node> dest, std::vector< Ptr<Node> > & parentVector,
                            Ptr<NetDevice> oif) const
 {
-  NS_LOG_FUNCTION_NOARGS ();
+  NS_LOG_FUNCTION (this << numberOfNodes << source << dest << parentVector << oif);
 
   NS_LOG_LOGIC ("Going from Node " << source->GetId () << " to Node " << dest->GetId ());
   std::queue< Ptr<Node> > greyNodeList;  // discovered nodes with unexplored children
@@ -838,7 +1076,7 @@ Ipv4NixVectorRouting::BFS (uint32_t numberOfNodes, Ptr<Node> source,
   // reset the parent vector
   parentVector.assign (numberOfNodes, 0); // initialize to 0
 
-  // Add the source node to the queue, set its parent to itself 
+  // Add the source node to the queue, set its parent to itself
   greyNodeList.push (source);
   parentVector.at (source->GetId ()) = source;
 
@@ -846,7 +1084,7 @@ Ipv4NixVectorRouting::BFS (uint32_t numberOfNodes, Ptr<Node> source,
   while (greyNodeList.size () != 0)
     {
       Ptr<Node> currNode = greyNodeList.front ();
-      Ptr<Ipv4> ipv4 = currNode->GetObject<Ipv4> ();
+      Ptr<IpL3Protocol> ip = currNode->GetObject<IpL3Protocol> ();
  
       if (currNode == dest) 
         {
@@ -860,12 +1098,12 @@ Ipv4NixVectorRouting::BFS (uint32_t numberOfNodes, Ptr<Node> source,
       if (currNode == source && oif)
         {
           // make sure that we can go this way
-          if (ipv4)
+          if (ip)
             {
-              uint32_t interfaceIndex = (ipv4)->GetInterfaceForDevice (oif);
-              if (!(ipv4->IsUp (interfaceIndex)))
+              uint32_t interfaceIndex = (ip)->GetInterfaceForDevice (oif);
+              if (!(ip->IsUp (interfaceIndex)))
                 {
-                  NS_LOG_LOGIC ("Ipv4Interface is down");
+                  NS_LOG_LOGIC ("IpInterface is down");
                   return false;
                 }
             }
@@ -892,10 +1130,16 @@ Ipv4NixVectorRouting::BFS (uint32_t numberOfNodes, Ptr<Node> source,
           for (NetDeviceContainer::Iterator iter = netDeviceContainer.Begin (); iter != netDeviceContainer.End (); iter++)
             {
               Ptr<Node> remoteNode = (*iter)->GetNode ();
+              Ptr<IpInterface> remoteIpInterface = GetInterfaceByNetDevice(*iter);
+              if (remoteIpInterface == 0 || !(remoteIpInterface->IsUp ()))
+                {
+                  NS_LOG_LOGIC ("IpInterface either doesn't exist or is down");
+                  continue;
+                }
 
               // check to see if this node has been pushed before
               // by checking to see if it has a parent
-              // if it doesn't (null or 0), then set its parent and 
+              // if it doesn't (null or 0), then set its parent and
               // push to the queue
               if (parentVector.at (remoteNode->GetId ()) == 0)
                 {
@@ -916,12 +1160,12 @@ Ipv4NixVectorRouting::BFS (uint32_t numberOfNodes, Ptr<Node> source,
               Ptr<NetDevice> localNetDevice = currNode->GetDevice (i);
 
               // make sure that we can go this way
-              if (ipv4)
+              if (ip)
                 {
-                  uint32_t interfaceIndex = (ipv4)->GetInterfaceForDevice (currNode->GetDevice (i));
-                  if (!(ipv4->IsUp (interfaceIndex)))
+                  uint32_t interfaceIndex = (ip)->GetInterfaceForDevice (currNode->GetDevice (i));
+                  if (!(ip->IsUp (interfaceIndex)))
                     {
-                      NS_LOG_LOGIC ("Ipv4Interface is down");
+                      NS_LOG_LOGIC ("IpInterface is down");
                       continue;
                     }
                 }
@@ -948,10 +1192,16 @@ Ipv4NixVectorRouting::BFS (uint32_t numberOfNodes, Ptr<Node> source,
               for (NetDeviceContainer::Iterator iter = netDeviceContainer.Begin (); iter != netDeviceContainer.End (); iter++)
                 {
                   Ptr<Node> remoteNode = (*iter)->GetNode ();
+                  Ptr<IpInterface> remoteIpInterface = GetInterfaceByNetDevice(*iter);
+                  if (remoteIpInterface == 0 || !(remoteIpInterface->IsUp ()))
+                    {
+                      NS_LOG_LOGIC ("IpInterface either doesn't exist or is down");
+                      continue;
+                    }
 
                   // check to see if this node has been pushed before
                   // by checking to see if it has a parent
-                  // if it doesn't (null or 0), then set its parent and 
+                  // if it doesn't (null or 0), then set its parent and
                   // push to the queue
                   if (parentVector.at (remoteNode->GetId ()) == 0)
                     {
@@ -971,14 +1221,16 @@ Ipv4NixVectorRouting::BFS (uint32_t numberOfNodes, Ptr<Node> source,
   return false;
 }
 
+template <typename T>
 void
-Ipv4NixVectorRouting::PrintRoutingPath (Ptr<Node> source, Ipv4Address dest,
+NixVectorRouting<T>::PrintRoutingPath (Ptr<Node> source, IpAddress dest,
                                         Ptr<OutputStreamWrapper> stream, Time::Unit unit) const
 {
   NS_LOG_FUNCTION (this << source << dest);
+
   Ptr<NixVector> nixVectorInCache;
   Ptr<NixVector> nixVector;
-  Ptr<Ipv4Route> rtentry;
+  Ptr<IpRoute> rtentry;
 
   CheckCacheStateAndFlush ();
 
@@ -1001,15 +1253,19 @@ Ipv4NixVectorRouting::PrintRoutingPath (Ptr<Node> source, Ipv4Address dest,
   *os << "(Node " << source->GetId () << " to Node " << destNode->GetId () << ", ";
   *os << "Nix Vector: ";
 
-  nixVectorInCache = GetNixVectorInCache (dest);
+  // Check the Nix cache
+  bool foundInCache = true;
+  nixVectorInCache = GetNixVectorInCache (dest, foundInCache);
 
   // not in cache
-  if (!nixVectorInCache)
+  if (!foundInCache)
     {
       NS_LOG_LOGIC ("Nix-vector not in cache, build: ");
       // Build the nix-vector, given the source node and the
       // dest IP address
       nixVectorInCache = GetNixVector (source, dest, nullptr);
+      // cache it
+      m_nixCache.insert (typename NixMap_t::value_type (dest, nixVectorInCache));
     }
 
   if (nixVectorInCache || (!nixVectorInCache && source == destNode))
@@ -1019,8 +1275,6 @@ Ipv4NixVectorRouting::PrintRoutingPath (Ptr<Node> source, Ipv4Address dest,
 
       if (nixVectorInCache)
         {
-          // cache it
-          m_nixCache.insert (NixMap_t::value_type (dest, nixVectorInCache));
           // Make a NixVector copy to work with. This is because
           // we don't want to extract the bits from nixVectorInCache
           // which is stored in the m_nixCache.
@@ -1032,11 +1286,14 @@ Ipv4NixVectorRouting::PrintRoutingPath (Ptr<Node> source, Ipv4Address dest,
 
       if (source == destNode)
         {
-          std::ostringstream src, dst;
-          src << dest << " (Node " << destNode->GetId () << ")";
-          *os << std::setw (20) << src.str ();
-          dst << "---->   " << dest << " (Node " << destNode->GetId () << ")";
-          *os << dst.str () << std::endl;
+          std::ostringstream addr, node;
+          addr << dest;
+          node << "(Node " << destNode->GetId () << ")";
+          *os << std::setw (25) << addr.str ();
+          *os << std::setw (10) << node.str ();
+          *os << "---->   ";
+          *os << std::setw (25) << addr.str ();
+          *os << node.str () << std::endl;
         }
 
       while (curr != destNode)
@@ -1049,33 +1306,38 @@ Ipv4NixVectorRouting::PrintRoutingPath (Ptr<Node> source, Ipv4Address dest,
           uint32_t nixIndex = nixVector->ExtractNeighborIndex (numberOfBits);
           // gatewayIP is the IP of next
           // node on channel found from nixIndex
-          Ipv4Address gatewayIp;
+          IpAddress gatewayIp;
           // Get the Net Device index from the nixIndex
-          uint32_t NetDeviceIndex = FindNetDeviceForNixIndex (curr, nixIndex, gatewayIp);
-          // Get the interfaceIndex with the help of NetDeviceIndex.
+          uint32_t netDeviceIndex = FindNetDeviceForNixIndex (curr, nixIndex, gatewayIp);
+          // Get the interfaceIndex with the help of netDeviceIndex.
           // It will be used to get the IP address on interfaceIndex
           // interface of 'curr' node.
-          Ptr<Ipv4> ipv4 = curr->GetObject<Ipv4> ();
-          Ptr<NetDevice> outDevice = curr->GetDevice (NetDeviceIndex);
-          uint32_t interfaceIndex = ipv4->GetInterfaceForDevice (outDevice);
-          Ipv4Address sourceIPAddr;
+          Ptr<IpL3Protocol> ip = curr->GetObject<IpL3Protocol> ();
+          Ptr<NetDevice> outDevice = curr->GetDevice (netDeviceIndex);
+          uint32_t interfaceIndex = ip->GetInterfaceForDevice (outDevice);
+          IpAddress sourceIPAddr;
           if (curr == source)
             {
-              sourceIPAddr = ipv4->SourceAddressSelection (interfaceIndex, dest);
+              sourceIPAddr = ip->SourceAddressSelection (interfaceIndex, dest);
             }
           else
             {
               // We use the first address because it's indifferent which one
               // we use to identify intermediate routers
-              sourceIPAddr = ipv4->GetAddress (interfaceIndex, 0).GetLocal ();
+              sourceIPAddr = ip->GetAddress (interfaceIndex, 0).GetAddress ();
             }
 
-          std::ostringstream currNode, nextNode;
-          currNode << sourceIPAddr << " (Node " << curr->GetId () << ")";
-          *os << std::setw (20) << currNode.str ();
+          std::ostringstream currAddr, currNode, nextAddr, nextNode;
+          currAddr << sourceIPAddr;
+          currNode << "(Node " << curr->GetId () << ")";
+          *os << std::setw (25) << currAddr.str ();
+          *os << std::setw (10) << currNode.str ();
           // Replace curr with the next node
           curr = GetNodeByIp (gatewayIp);
-          nextNode << "---->   " << ((curr == destNode) ? dest : gatewayIp) << " (Node " << curr->GetId () << ")";
+          nextAddr << ((curr == destNode) ? dest : gatewayIp);
+          nextNode << "(Node " << curr->GetId () << ")";
+          *os << "---->   ";
+          *os << std::setw (25) << nextAddr.str ();
           *os << nextNode.str () << std::endl;
         }
         *os << std::endl;
@@ -1091,8 +1353,9 @@ Ipv4NixVectorRouting::PrintRoutingPath (Ptr<Node> source, Ipv4Address dest,
   (*os).copyfmt (oldState);
 }
 
+template <typename T>
 void 
-Ipv4NixVectorRouting::CheckCacheStateAndFlush (void) const
+NixVectorRouting<T>::CheckCacheStateAndFlush (void) const
 {
   if (g_isCacheDirty)
     {
@@ -1100,5 +1363,15 @@ Ipv4NixVectorRouting::CheckCacheStateAndFlush (void) const
       g_isCacheDirty = false;
     }
 }
+
+/* Public template function declarations */
+template void NixVectorRouting<Ipv4RoutingProtocol>::SetNode (Ptr<Node> node);
+template void NixVectorRouting<Ipv6RoutingProtocol>::SetNode (Ptr<Node> node);
+template void NixVectorRouting<Ipv4RoutingProtocol>::FlushGlobalNixRoutingCache (void) const;
+template void NixVectorRouting<Ipv6RoutingProtocol>::FlushGlobalNixRoutingCache (void) const;
+template void NixVectorRouting<Ipv4RoutingProtocol>::PrintRoutingPath (Ptr<Node> source, IpAddress dest,
+                                                                       Ptr<OutputStreamWrapper> stream, Time::Unit unit) const;
+template void NixVectorRouting<Ipv6RoutingProtocol>::PrintRoutingPath (Ptr<Node> source, IpAddress dest,
+                                                                       Ptr<OutputStreamWrapper> stream, Time::Unit unit) const;
 
 } // namespace ns3

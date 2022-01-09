@@ -51,6 +51,42 @@ to this file based on your experience, please contribute a patch or drop
 us a note on ns-developers mailing list.</p>
 
 <hr>
+<h1>Changes from ns-3.34 to ns-3.35</h1>
+<h2>New API:</h2>
+<ul>
+<li>In class <b>Ipv6Header</b>, new functions SetSource (), SetDestination (), GetSource () and GetDestination () are added, consistent with <b>Ipv4Header</b>. The existing functions had "Address" suffix in each of the function names, and are are deprecated now.</li>
+<li>In class <b>Ipv4InterfaceAddress</b>, new functions SetAddress () and GetAddress () are added, corresponding to SetLocal () and GetLocal () respectively. This is done to keep consistency with <b>Ipv4InterfaceAddress</b>.</li>
+<li>With the new support for IPv6 Nix-Vector routing, we have all the new APIs corresponding to IPv4 Nix-Vector routing. Specific to the user, there is an Ipv6NixVectorHelper class which can be set in the InternetStackHelper, and works similar to Ipv4NixVectorHelper.</li>
+<li>In class <b>Ipv4InterfaceAddress</b>, a new function IsInSameSubnet () is added to check if both the IPv4 addresses are in the same subnet. Also, it is consistent with <b>Ipv6InterfaceAddress::IsInSameSubnet ()</b>.</li>
+<li>In class <b>ConfigStore</b>, a new Attribue <b>SaveDeprecated</b> allows to not save DEPRECATED Attributes. The default value is <b>false</b> (save DEPRECATED Attributes).</li>
+<li>In class <b>TracedCallback</b>, a new function <b>IsEmpty</b> allows to know if the TracedCallback will call any callback.</li>
+<li>A new specialization of std::hash for Ptr allows one to use Ptrs as keys in unordered_map and unordered_set containers.</li>
+<li>A new <b>GroupMobilityHelper</b> mobility helper has been added to ease the configuration of group mobility (a form of hierarchical mobility in which multiple child mobility models move with reference to an underlying parent mobility model).  New example programs and animation scripts are also added to both the buildings and mobility modules.</li>
+</ul>
+<h2>Changes to existing API:</h2>
+<ul>
+<li>In class <b>Ipv6Header</b>, the functions SetSourceAddress (), SetDestinationAddress (), GetSourceAddress () and GetDestinationAddress () are deprecated. New corresponding functions are added by removing the "Address" suffix. This change is made for having consistency with <b>Ipv4Header</b>.</li>
+<li><b>ipv4-nix-vector-helper.h</b> and <b>ipv4-nix-vector-routing.h</b> have been deprecated in favour of <b>nix-vector-helper.h</b> and <b>nix-vector-routing.h</b> respectively.</li>
+</ul>
+<h2>Changes to build system:</h2>
+<ul>
+<li>The default C++ standard is now C++17.</li>
+<li>The minimum compiler versions have been raised to g++-7 and clang-10 (Linux) and Xcode 11 (macOS).</li>
+</ul>
+<h2>Changed behavior:</h2>
+<ul>
+<li>Nix-Vector routing supports topologies with multiple WiFi networks using the same WiFi channel object.</li>
+<li>ConfigStore no longer saves OBSOLETE attributes.</li>
+<li>The <b>Ipv4L3Protocol</b> Duplicate detection now accounts for transmitted packets, so a transmitting multicast node will not forward its own packets.</li>
+<li>Wi-Fi: A-MSDU aggregation now implies that constituent MSDUs are immediately dequeued
+from the EDCA queue and replaced by an MPDU containing the A-MSDU. Thus, aggregating N
+MSDUs triggers N dequeue operations and 1 enqueue operation on the EDCA queue.</li>
+<li>Wi-Fi: MPDUs being passed to the PHY layer for transmission are not dequeued, but
+are kept in the EDCA queue until they are acknowledged or discarded. Consequently, the
+BlockAckManager retransmit queue has been removed.</li>
+</ul>
+
+<hr>
 <h1>Changes from ns-3.33 to ns-3.34</h1>
 <h2>New features and API:</h2>
 <ul>

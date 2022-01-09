@@ -37,6 +37,7 @@
 #include <cmath>
 #include "ns3/he-frame-exchange-manager.h"
 #include "channel-access-manager.h"
+#include "wifi-mac-queue.h"
 
 namespace ns3 {
 
@@ -59,6 +60,7 @@ RegularWifiMac::RegularWifiMac ()
 
   m_txop = CreateObject<Txop> ();
   m_txop->SetChannelAccessManager (m_channelAccessManager);
+  m_txop->SetWifiMac (this);
   m_txop->SetTxMiddle (m_txMiddle);
   m_txop->SetDroppedMpduCallback (MakeCallback (&DroppedMpduTracedCallback::operator(),
                                                 &m_droppedMpduCallback));
@@ -182,11 +184,6 @@ RegularWifiMac::SetWifiRemoteStationManager (const Ptr<WifiRemoteStationManager>
 {
   NS_LOG_FUNCTION (this << stationManager);
   m_stationManager = stationManager;
-  m_txop->SetWifiRemoteStationManager (stationManager);
-  for (EdcaQueues::const_iterator i = m_edca.begin (); i != m_edca.end (); ++i)
-    {
-      i->second->SetWifiRemoteStationManager (stationManager);
-    }
 }
 
 Ptr<WifiRemoteStationManager>
@@ -467,8 +464,9 @@ RegularWifiMac::SetupEdcaQueue (AcIndex ac)
   //already configured.
   NS_ASSERT (m_edca.find (ac) == m_edca.end ());
 
-  Ptr<QosTxop> edca = CreateObject<QosTxop> ();
+  Ptr<QosTxop> edca = CreateObject<QosTxop> (ac);
   edca->SetChannelAccessManager (m_channelAccessManager);
+  edca->SetWifiMac (this);
   edca->SetTxMiddle (m_txMiddle);
   edca->GetBaManager ()->SetTxOkCallback (MakeCallback (&MpduTracedCallback::operator(),
                                                         &m_ackedMpduCallback));
@@ -476,7 +474,6 @@ RegularWifiMac::SetupEdcaQueue (AcIndex ac)
                                                             &m_nackedMpduCallback));
   edca->SetDroppedMpduCallback (MakeCallback (&DroppedMpduTracedCallback::operator(),
                                               &m_droppedMpduCallback));
-  edca->SetAccessCategory (ac);
 
   m_edca.insert (std::make_pair (ac, edca));
 }
@@ -534,6 +531,17 @@ Ptr<QosTxop>
 RegularWifiMac::GetBKQueue () const
 {
   return m_edca.find (AC_BK)->second;
+}
+
+Ptr<WifiMacQueue>
+RegularWifiMac::GetTxopQueue (AcIndex ac) const
+{
+  if (ac == AC_BE_NQOS)
+    {
+      return m_txop->GetWifiMacQueue ();
+    }
+  NS_ASSERT (ac == AC_BE || ac == AC_BK || ac == AC_VI || ac == AC_VO);
+  return m_edca.find (ac)->second->GetWifiMacQueue ();
 }
 
 void
@@ -1150,6 +1158,56 @@ RegularWifiMac::ConfigureContentionWindow (uint32_t cwMin, uint32_t cwMax)
     {
       ConfigureDcf (i->second, cwMin, cwMax, isDsssOnly, i->first);
     }
+}
+
+uint32_t
+RegularWifiMac::GetMaxAmpduSize (AcIndex ac) const
+{
+  uint32_t maxSize = 0;
+  switch (ac)
+    {
+      case AC_BE:
+        maxSize = m_beMaxAmpduSize;
+        break;
+      case AC_BK:
+        maxSize = m_bkMaxAmpduSize;
+        break;
+      case AC_VI:
+        maxSize = m_viMaxAmpduSize;
+        break;
+      case AC_VO:
+        maxSize = m_voMaxAmpduSize;
+        break;
+      default:
+        NS_ABORT_MSG ("Unknown AC " << ac);
+        return 0;
+    }
+  return maxSize;
+}
+
+uint16_t
+RegularWifiMac::GetMaxAmsduSize (AcIndex ac) const
+{
+  uint16_t maxSize = 0;
+  switch (ac)
+    {
+      case AC_BE:
+        maxSize = m_beMaxAmsduSize;
+        break;
+      case AC_BK:
+        maxSize = m_bkMaxAmsduSize;
+        break;
+      case AC_VI:
+        maxSize = m_viMaxAmsduSize;
+        break;
+      case AC_VO:
+        maxSize = m_voMaxAmsduSize;
+        break;
+      default:
+        NS_ABORT_MSG ("Unknown AC " << ac);
+        return 0;
+    }
+  return maxSize;
 }
 
 } //namespace ns3

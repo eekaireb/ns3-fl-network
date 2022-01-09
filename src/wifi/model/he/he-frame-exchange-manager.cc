@@ -593,9 +593,6 @@ HeFrameExchangeManager::ForwardPsduMapDown (WifiConstPsduMap psduMap, WifiTxVect
   for (const auto& psdu : psduMap)
     {
       NotifyTxToEdca (psdu.second);
-
-      // the PSDU is about to be transmitted, we can now dequeue the MPDUs
-      DequeuePsdu (psdu.second);
     }
   if (psduMap.size () > 1 || psduMap.begin ()->second->IsAggregate () || psduMap.begin ()->second->IsSingle ())
     {
@@ -1194,7 +1191,7 @@ HeFrameExchangeManager::ReceiveBasicTrigger (const CtrlTriggerHeader& trigger, c
       // otherwise, check if a suitable data frame is available
       if ((mpdu = edca->PeekNextMpdu (tid, hdr.GetAddr2 ())) != 0)
         {
-          WifiMacQueueItem::QueueIteratorPair queueIt;
+          WifiMacQueueItem::ConstIterator queueIt;
           Ptr<WifiMacQueueItem> item = edca->GetNextMpdu (mpdu, txParams, ppduDuration, false, queueIt);
 
           if (item != 0)
@@ -1428,8 +1425,10 @@ HeFrameExchangeManager::ReceiveMpdu (Ptr<WifiMacQueueItem> mpdu, RxSignalInfo rx
           CtrlBAckResponseHeader blockAck;
           mpdu->GetPacket ()->PeekHeader (blockAck);
           uint8_t tid = blockAck.GetTidInfo ();
-          GetBaManager (tid)->NotifyGotBlockAck (blockAck, hdr.GetAddr2 (), {tid}, rxSignalInfo.snr,
-                                                 tag.Get (), m_txParams.m_txVector);
+          std::pair<uint16_t,uint16_t> ret = GetBaManager (tid)->NotifyGotBlockAck (blockAck, hdr.GetAddr2 (),
+                                                                                    {tid});
+          m_mac->GetWifiRemoteStationManager ()->ReportAmpduTxStatus (hdr.GetAddr2 (), ret.first, ret.second,
+                                                                      rxSignalInfo.snr, tag.Get (), m_txParams.m_txVector);
 
           // remove the sender from the set of stations that are expected to send a BlockAck
           if (m_staExpectTbPpduFrom.erase (sender) == 0)
@@ -1497,9 +1496,27 @@ HeFrameExchangeManager::ReceiveMpdu (Ptr<WifiMacQueueItem> mpdu, RxSignalInfo rx
                       tid = *tids.begin ();
                     }
 
-                  GetBaManager (tid)->NotifyGotBlockAck (blockAck, hdr.GetAddr2 (), {tid},
-                                                         rxSignalInfo.snr, tag.Get (staId),
-                                                         m_txParams.m_txVector, index);
+                  std::pair<uint16_t,uint16_t> ret = GetBaManager (tid)->NotifyGotBlockAck (blockAck,
+                                                                                            hdr.GetAddr2 (),
+                                                                                            {tid}, index);
+                  m_mac->GetWifiRemoteStationManager ()->ReportAmpduTxStatus (hdr.GetAddr2 (), ret.first,
+                                                                              ret.second, rxSignalInfo.snr,
+                                                                              tag.Get (staId),  m_txParams.m_txVector);
+                }
+
+              if (m_psduMap.at (staId)->GetHeader (0).IsQosData ()
+                  && (blockAck.GetAckType (index)  // Ack or All-ack context
+                      || std::any_of (blockAck.GetBitmap (index).begin (),
+                                      blockAck.GetBitmap (index).end (),
+                                      [](uint8_t b) { return b != 0; })))
+                {
+                  NS_ASSERT (m_psduMap.at (staId)->GetHeader (0).HasData ());
+                  NS_ASSERT (m_psduMap.at (staId)->GetHeader (0).GetQosTid () == tid);
+                  // the station has received a response from the AP for the HE TB PPDU
+                  // transmitted in response to a Basic Trigger Frame and at least one
+                  // MPDU was acknowledged. Therefore, it needs to update the access
+                  // parameters if it received an MU EDCA Parameter Set element.
+                  m_mac->GetQosTxop (tid)->StartMuEdcaTimerNow ();
                 }
             }
 

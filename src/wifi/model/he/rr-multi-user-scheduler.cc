@@ -137,6 +137,13 @@ RrMultiUserScheduler::SelectTxFormat (void)
 {
   NS_LOG_FUNCTION (this);
 
+  Ptr<const WifiMacQueueItem> mpdu = m_edca->PeekNextMpdu ();
+
+  if (mpdu != 0 && !GetWifiRemoteStationManager ()->GetHeSupported (mpdu->GetHeader ().GetAddr1 ()))
+    {
+      return SU_TX;
+    }
+
   if (m_enableUlOfdma && m_enableBsrp && GetLastTxFormat () == DL_MU_TX)
     {
       return TrySendingBsrpTf ();
@@ -721,10 +728,9 @@ RrMultiUserScheduler::ComputeDlMuInfo (void)
       NS_ASSERT (receiver == candidate.first->address);
 
       NS_ASSERT (mpdu->IsQueued ());
-      WifiMacQueueItem::QueueIteratorPair queueIt = mpdu->GetQueueIteratorPairs ().front ();
-      NS_ASSERT (queueIt.queue != nullptr);
-      Ptr<WifiMacQueueItem> item = *queueIt.it;
-      queueIt.it++;
+      WifiMacQueueItem::ConstIterator queueIt = mpdu->GetQueueIterator ();
+      Ptr<WifiMacQueueItem> item = *queueIt;
+      queueIt++;
 
       if (!mpdu->GetHeader ().IsRetry ())
         {
@@ -735,7 +741,7 @@ RrMultiUserScheduler::ComputeDlMuInfo (void)
           if (item == nullptr)
             {
               // A-MSDU aggregation failed or disabled
-              item = *mpdu->GetQueueIteratorPairs ().front ().it;
+              item = *mpdu->GetQueueIterator ();
             }
           m_apMac->GetQosTxop (QosUtilsMapTidToAc (tid))->AssignSequenceNumber (item);
         }

@@ -297,7 +297,7 @@ PhyEntity::EndReceiveField (WifiPpduField field, Ptr<Event> event)
             AbortCurrentReception (status.reason);
             if (event->GetEndTime () > (Simulator::Now () + m_state->GetDelayUntilIdle ()))
               {
-                m_wifiPhy->MaybeCcaBusyDuration (GetMeasurementChannelWidth (ppdu));
+                m_wifiPhy->SwitchMaybeToCcaBusy (GetMeasurementChannelWidth (ppdu));
               }
             break;
           case DROP:
@@ -359,7 +359,7 @@ PhyEntity::DoEndReceiveField (WifiPpduField field, Ptr<Event> event)
 }
 
 void
-PhyEntity::StartReceivePreamble (Ptr<WifiPpdu> ppdu, RxPowerWattPerChannelBand rxPowersW,
+PhyEntity::StartReceivePreamble (Ptr<WifiPpdu> ppdu, RxPowerWattPerChannelBand& rxPowersW,
                                  Time /* rxDuration */)
 {
   //The total RX power corresponds to the maximum over all the bands
@@ -383,7 +383,7 @@ PhyEntity::StartReceivePreamble (Ptr<WifiPpdu> ppdu, RxPowerWattPerChannelBand r
       NS_LOG_DEBUG ("Cannot start RX because device is OFF");
       if (endRx > (Simulator::Now () + m_state->GetDelayUntilIdle ()))
         {
-          m_wifiPhy->MaybeCcaBusyDuration (m_wifiPhy->GetMeasurementChannelWidth (nullptr));
+          m_wifiPhy->SwitchMaybeToCcaBusy (m_wifiPhy->GetMeasurementChannelWidth (nullptr));
         }
       return;
     }
@@ -393,7 +393,7 @@ PhyEntity::StartReceivePreamble (Ptr<WifiPpdu> ppdu, RxPowerWattPerChannelBand r
       NS_LOG_DEBUG ("Packet reception stopped because transmitter has been switched off");
       if (endRx > (Simulator::Now () + m_state->GetDelayUntilIdle ()))
         {
-          m_wifiPhy->MaybeCcaBusyDuration (GetMeasurementChannelWidth (ppdu));
+          m_wifiPhy->SwitchMaybeToCcaBusy (GetMeasurementChannelWidth (ppdu));
         }
       return;
     }
@@ -490,7 +490,7 @@ PhyEntity::DropPreambleEvent (Ptr<const WifiPpdu> ppdu, WifiPhyRxfailureReason r
   if (endRx > (Simulator::Now () + m_state->GetDelayUntilIdle ()))
     {
       //that PPDU will be noise _after_ the end of the current event.
-      m_wifiPhy->MaybeCcaBusyDuration (measurementChannelWidth);
+      m_wifiPhy->SwitchMaybeToCcaBusy (measurementChannelWidth);
     }
 }
 
@@ -603,8 +603,6 @@ PhyEntity::EndOfMpdu (Ptr<Event> event, Ptr<const WifiPsdu> psdu, size_t mpduInd
   Ptr<const WifiPpdu> ppdu = event->GetPpdu ();
   WifiTxVector txVector = event->GetTxVector ();
   uint16_t staId = GetStaId (ppdu);
-  const auto & channelWidthAndBand = GetChannelWidthAndBand (event->GetTxVector (), staId);
-  double snr = m_wifiPhy->m_interference.CalculateSnr (event, channelWidthAndBand.first, txVector.GetNss (staId), channelWidthAndBand.second);
 
   std::pair<bool, SignalNoiseDbm> rxInfo = GetReceptionStatus (psdu, event, staId, relativeStart, mpduDuration);
   NS_LOG_DEBUG ("Extracted MPDU #" << mpduIndex << ": duration: " << mpduDuration.As (Time::NS) <<
@@ -615,7 +613,7 @@ PhyEntity::EndOfMpdu (Ptr<Event> event, Ptr<const WifiPsdu> psdu, size_t mpduInd
   signalNoiseIt->second = rxInfo.second;
 
   RxSignalInfo rxSignalInfo;
-  rxSignalInfo.snr = snr;
+  rxSignalInfo.snr = rxInfo.second.signal / rxInfo.second.noise;
   rxSignalInfo.rssi = rxInfo.second.signal;
 
   auto statusPerMpduIt = m_statusPerMpduMap.find (std::make_pair (ppdu->GetUid (), staId));
@@ -665,7 +663,7 @@ PhyEntity::EndReceivePayload (Ptr<Event> event)
     }
 
   DoEndReceivePayload (ppdu);
-  m_wifiPhy->MaybeCcaBusyDuration (GetMeasurementChannelWidth (ppdu));
+  m_wifiPhy->SwitchMaybeToCcaBusy (GetMeasurementChannelWidth (ppdu));
 }
 
 void
@@ -736,7 +734,7 @@ PhyEntity::AddPreambleEvent (Ptr<Event> event)
 }
 
 Ptr<Event>
-PhyEntity::DoGetEvent (Ptr<const WifiPpdu> ppdu, RxPowerWattPerChannelBand rxPowersW)
+PhyEntity::DoGetEvent (Ptr<const WifiPpdu> ppdu, RxPowerWattPerChannelBand& rxPowersW)
 {
   Ptr<Event> event = CreateInterferenceEvent (ppdu, ppdu->GetTxVector (), ppdu->GetTxDuration (), rxPowersW);
 
@@ -748,13 +746,13 @@ PhyEntity::DoGetEvent (Ptr<const WifiPpdu> ppdu, RxPowerWattPerChannelBand rxPow
 }
 
 Ptr<Event>
-PhyEntity::CreateInterferenceEvent (Ptr<const WifiPpdu> ppdu, const WifiTxVector& txVector, Time duration, RxPowerWattPerChannelBand rxPower, bool isStartOfdmaRxing /* = false */)
+PhyEntity::CreateInterferenceEvent (Ptr<const WifiPpdu> ppdu, const WifiTxVector& txVector, Time duration, RxPowerWattPerChannelBand& rxPower, bool isStartOfdmaRxing /* = false */)
 {
   return m_wifiPhy->m_interference.Add (ppdu, txVector, duration, rxPower, isStartOfdmaRxing);
 }
 
 void
-PhyEntity::UpdateInterferenceEvent (Ptr<Event> event, RxPowerWattPerChannelBand rxPower)
+PhyEntity::UpdateInterferenceEvent (Ptr<Event> event, const RxPowerWattPerChannelBand& rxPower)
 {
   m_wifiPhy->m_interference.UpdateEvent (event, rxPower);
 }

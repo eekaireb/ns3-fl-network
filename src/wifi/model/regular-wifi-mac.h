@@ -35,6 +35,7 @@ class ChannelAccessManager;
 class ExtendedCapabilities;
 class FrameExchangeManager;
 class WifiPsdu;
+class WifiMacQueue;
 enum WifiTxTimerReason : uint8_t;
 
 typedef std::unordered_map <uint16_t /* staId */, Ptr<WifiPsdu> /* PSDU */> WifiPsduMap;
@@ -123,6 +124,50 @@ public:
    * \return a smart pointer to a QosTxop
    */
   Ptr<QosTxop> GetQosTxop (uint8_t tid) const;
+  /**
+   * Get the wifi MAC queue of the (Qos)Txop associated with the given AC.
+   *
+   * \param ac the given Access Category
+   * \return the wifi MAC queue of the (Qos)Txop associated with the given AC
+   */
+  virtual Ptr<WifiMacQueue> GetTxopQueue (AcIndex ac) const;
+
+  /**
+   * Return whether the device supports QoS.
+   *
+   * \return true if QoS is supported, false otherwise
+   */
+  bool GetQosSupported () const;
+  /**
+   * Return whether the device supports ERP.
+   *
+   * \return true if ERP is supported, false otherwise
+   */
+  bool GetErpSupported () const;
+  /**
+   * Return whether the device supports DSSS.
+   *
+   * \return true if DSSS is supported, false otherwise
+   */
+  bool GetDsssSupported () const;
+  /**
+   * Return whether the device supports HT.
+   *
+   * \return true if HT is supported, false otherwise
+   */
+  bool GetHtSupported () const;
+  /**
+   * Return whether the device supports VHT.
+   *
+   * \return true if VHT is supported, false otherwise
+   */
+  bool GetVhtSupported () const;
+  /**
+   * Return whether the device supports HE.
+   *
+   * \return true if HE is supported, false otherwise
+   */
+  bool GetHeSupported () const;
 
   /**
    * Return the extended capabilities of the device.
@@ -148,6 +193,21 @@ public:
    * \return the HE capabilities that we support
    */
   HeCapabilities GetHeCapabilities (void) const;
+
+  /**
+   * Return the maximum A-MPDU size of the given Access Category.
+   *
+   * \param ac Access Category index
+   * \return the maximum A-MPDU size
+   */
+  uint32_t GetMaxAmpduSize (AcIndex ac) const;
+  /**
+   * Return the maximum A-MSDU size of the given Access Category.
+   *
+   * \param ac Access Category index
+   * \return the maximum A-MSDU size
+   */
+  uint16_t GetMaxAmsduSize (AcIndex ac) const;
 
 protected:
   void DoInitialize () override;
@@ -252,12 +312,6 @@ protected:
    * \param enable whether QoS is supported
    */
   virtual void SetQosSupported (bool enable);
-  /**
-   * Return whether the device supports QoS.
-   *
-   * \return true if QoS is supported, false otherwise
-   */
-  bool GetQosSupported () const;
 
   /**
    * Create a Frame Exchange Manager depending on the supported version
@@ -266,31 +320,11 @@ protected:
   void SetupFrameExchangeManager (void);
 
   /**
-   * Return whether the device supports HT.
-   *
-   * \return true if HT is supported, false otherwise
-   */
-  bool GetHtSupported () const;
-
-  /**
-   * Return whether the device supports VHT.
-   *
-   * \return true if VHT is supported, false otherwise
-   */
-  bool GetVhtSupported () const;
-
-  /**
    * Enable or disable ERP support for the device.
    *
    * \param enable whether ERP is supported
    */
   void SetErpSupported (bool enable);
-  /**
-   * Return whether the device supports ERP.
-   *
-   * \return true if ERP is supported, false otherwise
-   */
-  bool GetErpSupported () const;
 
   /**
    * Enable or disable DSSS support for the device.
@@ -298,19 +332,6 @@ protected:
    * \param enable whether DSSS is supported
    */
   void SetDsssSupported (bool enable);
-  /**
-   * Return whether the device supports DSSS.
-   *
-   * \return true if DSSS is supported, false otherwise
-   */
-  bool GetDsssSupported () const;
-
-  /**
-   * Return whether the device supports HE.
-   *
-   * \return true if HE is supported, false otherwise
-   */
-  bool GetHeSupported () const;
 
 private:
   /// type conversion operator

@@ -35,6 +35,7 @@
 #include "amsdu-subframe-header.h"
 #include "wifi-phy.h"
 #include "wifi-net-device.h"
+#include "wifi-mac-queue.h"
 #include "ns3/ht-configuration.h"
 #include "ns3/he-configuration.h"
 
@@ -103,7 +104,8 @@ ApWifiMac::ApWifiMac ()
     m_shortPreambleEnabled (false)
 {
   NS_LOG_FUNCTION (this);
-  m_beaconTxop = CreateObject<Txop> ();
+  m_beaconTxop = CreateObject<Txop> (CreateObject<WifiMacQueue> (AC_BEACON));
+  m_beaconTxop->SetWifiMac (this);
   m_beaconTxop->SetAifsn (1);
   m_beaconTxop->SetMinCw (0);
   m_beaconTxop->SetMaxCw (0);
@@ -118,7 +120,6 @@ ApWifiMac::~ApWifiMac ()
 {
   NS_LOG_FUNCTION (this);
   m_staList.clear ();
-  m_addressIdMap.clear ();
 }
 
 void
@@ -142,6 +143,16 @@ ApWifiMac::SetAddress (Mac48Address address)
   RegularWifiMac::SetBssid (address);
 }
 
+Ptr<WifiMacQueue>
+ApWifiMac::GetTxopQueue (AcIndex ac) const
+{
+  if (ac == AC_BEACON)
+    {
+      return m_beaconTxop->GetWifiMacQueue ();
+    }
+  return RegularWifiMac::GetTxopQueue (ac);
+}
+
 void
 ApWifiMac::SetBeaconGeneration (bool enable)
 {
@@ -162,14 +173,6 @@ ApWifiMac::GetBeaconInterval (void) const
 {
   NS_LOG_FUNCTION (this);
   return m_beaconInterval;
-}
-
-void
-ApWifiMac::SetWifiRemoteStationManager (const Ptr<WifiRemoteStationManager> stationManager)
-{
-  NS_LOG_FUNCTION (this << stationManager);
-  m_beaconTxop->SetWifiRemoteStationManager (stationManager);
-  RegularWifiMac::SetWifiRemoteStationManager (stationManager);
 }
 
 void
@@ -513,6 +516,60 @@ ApWifiMac::GetEdcaParameterSet (void) const
   return edcaParameters;
 }
 
+MuEdcaParameterSet
+ApWifiMac::GetMuEdcaParameterSet (void) const
+{
+  NS_LOG_FUNCTION (this);
+  MuEdcaParameterSet muEdcaParameters;
+  if (GetHeSupported ())
+    {
+      Ptr<HeConfiguration> heConfiguration = GetHeConfiguration ();
+      NS_ASSERT (heConfiguration != 0);
+
+      muEdcaParameters.SetQosInfo (0);
+
+      UintegerValue uintegerValue;
+      TimeValue timeValue;
+
+      heConfiguration->GetAttribute ("MuBeAifsn", uintegerValue);
+      muEdcaParameters.SetMuAifsn (AC_BE, uintegerValue.Get ());
+      heConfiguration->GetAttribute ("MuBeCwMin", uintegerValue);
+      muEdcaParameters.SetMuCwMin (AC_BE, uintegerValue.Get ());
+      heConfiguration->GetAttribute ("MuBeCwMax", uintegerValue);
+      muEdcaParameters.SetMuCwMax (AC_BE, uintegerValue.Get ());
+      heConfiguration->GetAttribute ("BeMuEdcaTimer", timeValue);
+      muEdcaParameters.SetMuEdcaTimer (AC_BE, timeValue.Get ());
+
+      heConfiguration->GetAttribute ("MuBkAifsn", uintegerValue);
+      muEdcaParameters.SetMuAifsn (AC_BK, uintegerValue.Get ());
+      heConfiguration->GetAttribute ("MuBkCwMin", uintegerValue);
+      muEdcaParameters.SetMuCwMin (AC_BK, uintegerValue.Get ());
+      heConfiguration->GetAttribute ("MuBkCwMax", uintegerValue);
+      muEdcaParameters.SetMuCwMax (AC_BK, uintegerValue.Get ());
+      heConfiguration->GetAttribute ("BkMuEdcaTimer", timeValue);
+      muEdcaParameters.SetMuEdcaTimer (AC_BK, timeValue.Get ());
+
+      heConfiguration->GetAttribute ("MuViAifsn", uintegerValue);
+      muEdcaParameters.SetMuAifsn (AC_VI, uintegerValue.Get ());
+      heConfiguration->GetAttribute ("MuViCwMin", uintegerValue);
+      muEdcaParameters.SetMuCwMin (AC_VI, uintegerValue.Get ());
+      heConfiguration->GetAttribute ("MuViCwMax", uintegerValue);
+      muEdcaParameters.SetMuCwMax (AC_VI, uintegerValue.Get ());
+      heConfiguration->GetAttribute ("ViMuEdcaTimer", timeValue);
+      muEdcaParameters.SetMuEdcaTimer (AC_VI, timeValue.Get ());
+
+      heConfiguration->GetAttribute ("MuVoAifsn", uintegerValue);
+      muEdcaParameters.SetMuAifsn (AC_VO, uintegerValue.Get ());
+      heConfiguration->GetAttribute ("MuVoCwMin", uintegerValue);
+      muEdcaParameters.SetMuCwMin (AC_VO, uintegerValue.Get ());
+      heConfiguration->GetAttribute ("MuVoCwMax", uintegerValue);
+      muEdcaParameters.SetMuCwMax (AC_VO, uintegerValue.Get ());
+      heConfiguration->GetAttribute ("VoMuEdcaTimer", timeValue);
+      muEdcaParameters.SetMuEdcaTimer (AC_VO, timeValue.Get ());
+    }
+  return muEdcaParameters;
+}
+
 HtOperation
 ApWifiMac::GetHtOperation (void) const
 {
@@ -717,6 +774,7 @@ ApWifiMac::SendProbeResp (Mac48Address to)
     {
       probe.SetHeCapabilities (GetHeCapabilities ());
       probe.SetHeOperation (GetHeOperation ());
+      probe.SetMuEdcaParameterSet (GetMuEdcaParameterSet ());
     }
   packet->AddHeader (probe);
 
@@ -763,7 +821,7 @@ ApWifiMac::SendAssocResp (Mac48Address to, bool success, bool isReassoc)
           aid = GetNextAssociationId ();
           m_staList.insert (std::make_pair (aid, to));
           m_assocLogger (aid, to);
-          m_addressIdMap.insert (std::make_pair (to, aid));
+          m_stationManager->SetAssociationId (to, aid);
           if (m_stationManager->GetDsssSupported (to) && !m_stationManager->GetErpOfdmSupported (to))
             {
               m_numNonErpStations++;
@@ -807,6 +865,7 @@ ApWifiMac::SendAssocResp (Mac48Address to, bool success, bool isReassoc)
     {
       assoc.SetHeCapabilities (GetHeCapabilities ());
       assoc.SetHeOperation (GetHeOperation ());
+      assoc.SetMuEdcaParameterSet (GetMuEdcaParameterSet ());
     }
   packet->AddHeader (assoc);
 
@@ -863,6 +922,7 @@ ApWifiMac::SendOneBeacon (void)
     {
       beacon.SetHeCapabilities (GetHeCapabilities ());
       beacon.SetHeOperation (GetHeOperation ());
+      beacon.SetMuEdcaParameterSet (GetMuEdcaParameterSet ());
     }
   packet->AddHeader (beacon);
 
@@ -1294,7 +1354,6 @@ ApWifiMac::Receive (Ptr<WifiMacQueueItem> mpdu)
                     {
                       m_staList.erase (it);
                       m_deAssocLogger (it->first, it->second);
-                      m_addressIdMap.erase (from);
                       if (m_stationManager->GetDsssSupported (from) && !m_stationManager->GetErpOfdmSupported (from))
                         {
                           m_numNonErpStations--;
@@ -1399,13 +1458,7 @@ ApWifiMac::GetStaList (void) const
 uint16_t
 ApWifiMac::GetAssociationId (Mac48Address addr) const
 {
-  auto it = m_addressIdMap.find (addr);
-
-  if (it == m_addressIdMap.end ())
-    {
-      return SU_STA_ID;
-    }
-  return it->second;
+  return m_stationManager->GetAssociationId (addr);
 }
 
 uint8_t

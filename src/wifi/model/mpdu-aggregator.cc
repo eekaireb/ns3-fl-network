@@ -126,28 +126,7 @@ MpduAggregator::GetMaxAmpduSize (Mac48Address recipient, uint8_t tid,
   AcIndex ac = QosUtilsMapTidToAc (tid);
 
   // Find the A-MPDU max size configured on this device
-  UintegerValue size;
-
-  switch (ac)
-    {
-      case AC_BE:
-        m_mac->GetAttribute ("BE_MaxAmpduSize", size);
-        break;
-      case AC_BK:
-        m_mac->GetAttribute ("BK_MaxAmpduSize", size);
-        break;
-      case AC_VI:
-        m_mac->GetAttribute ("VI_MaxAmpduSize", size);
-        break;
-      case AC_VO:
-        m_mac->GetAttribute ("VO_MaxAmpduSize", size);
-        break;
-      default:
-        NS_ABORT_MSG ("Unknown AC " << ac);
-        return 0;
-    }
-
-  uint32_t maxAmpduSize = size.Get ();
+  uint32_t maxAmpduSize = m_mac->GetMaxAmpduSize (ac);
 
   if (maxAmpduSize == 0)
     {
@@ -213,7 +192,7 @@ MpduAggregator::GetAmpduSubframeHeader (uint16_t mpduSize, bool isSingle)
 
 std::vector<Ptr<WifiMacQueueItem>>
 MpduAggregator::GetNextAmpdu (Ptr<WifiMacQueueItem> mpdu, WifiTxParameters& txParams,
-                              Time availableTime, WifiMacQueueItem::QueueIteratorPair queueIt) const
+                              Time availableTime, WifiMacQueueItem::ConstIterator queueIt) const
 {
   NS_LOG_FUNCTION (this << *mpdu << &txParams << availableTime);
 

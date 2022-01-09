@@ -769,37 +769,6 @@ WifiHelper::SetStandard (WifiStandard standard)
   m_standard = standard;
 }
 
-// NS_DEPRECATED_3_32
-void
-WifiHelper::SetStandard (WifiPhyStandard standard)
-{
-  switch (standard)
-    {
-    case WIFI_PHY_STANDARD_80211a:
-      m_standard = WIFI_STANDARD_80211a;
-      return;
-    case WIFI_PHY_STANDARD_80211b:
-      m_standard = WIFI_STANDARD_80211b;
-      return;
-    case WIFI_PHY_STANDARD_80211g:
-      m_standard = WIFI_STANDARD_80211g;
-      return;
-    // remove the next value from WifiPhyStandard when deprecation ends
-    case WIFI_PHY_STANDARD_80211n_2_4GHZ:
-      m_standard = WIFI_STANDARD_80211n_2_4GHZ;
-      return;
-    // remove the next value from WifiPhyStandard when deprecation ends
-    case WIFI_PHY_STANDARD_80211n_5GHZ:
-      m_standard = WIFI_STANDARD_80211n_5GHZ;
-      return;
-    case WIFI_PHY_STANDARD_80211ac:
-      m_standard = WIFI_STANDARD_80211ac;
-      return;
-    default:
-      NS_FATAL_ERROR ("Unsupported value of WifiPhyStandard");
-    }
-}
-
 void
 WifiHelper::SetSelectQueueCallback (SelectQueueCallback f)
 {
@@ -839,11 +808,11 @@ WifiHelper::Install (const WifiPhyHelper &phyHelper,
           device->SetHeConfiguration (heConfiguration);
         }
       Ptr<WifiRemoteStationManager> manager = m_stationManager.Create<WifiRemoteStationManager> ();
-      Ptr<WifiMac> mac = macHelper.Create (device, m_standard);
       Ptr<WifiPhy> phy = phyHelper.Create (node, device);
       phy->ConfigureStandardAndBand (it->second.phyStandard, it->second.phyBand);
-      device->SetMac (mac);
       device->SetPhy (phy);
+      Ptr<WifiMac> mac = macHelper.Create (device, m_standard);
+      device->SetMac (mac);
       device->SetRemoteStationManager (manager);
       node->AddDevice (device);
       if ((it->second.phyStandard >= WIFI_PHY_STANDARD_80211ax) && (m_obssPdAlgorithm.IsTypeIdSet ()))

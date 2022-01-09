@@ -33,6 +33,7 @@ class CapabilityInformation;
 class DsssParameterSet;
 class ErpInformation;
 class EdcaParameterSet;
+class MuEdcaParameterSet;
 class HtOperation;
 class VhtOperation;
 class HeOperation;
@@ -57,12 +58,12 @@ public:
   ApWifiMac ();
   virtual ~ApWifiMac ();
 
-  void SetWifiRemoteStationManager (const Ptr<WifiRemoteStationManager> stationManager) override;
   void SetLinkUpCallback (Callback<void> linkUp) override;
   void Enqueue (Ptr<Packet> packet, Mac48Address to) override;
   void Enqueue (Ptr<Packet> packet, Mac48Address to, Mac48Address from) override;
   bool SupportsSendFrom (void) const override;
   void SetAddress (Mac48Address address) override;
+  Ptr<WifiMacQueue> GetTxopQueue (AcIndex ac) const override;
 
   /**
    * \param interval the interval between two beacon transmissions.
@@ -233,6 +234,12 @@ private:
    */
   EdcaParameterSet GetEdcaParameterSet (void) const;
   /**
+   * Return the MU EDCA Parameter Set of the current AP.
+   *
+   * \return the MU EDCA Parameter Set that we support
+   */
+  MuEdcaParameterSet GetMuEdcaParameterSet (void) const;
+  /**
    * Return the HT operation of the current AP.
    *
    * \return the HT operation that we support
@@ -307,8 +314,6 @@ private:
   Ptr<UniformRandomVariable> m_beaconJitter; //!< UniformRandomVariable used to randomize the time of the first beacon
   bool m_enableBeaconJitter;                 //!< Flag whether the first beacon should be generated at random time
   std::map<uint16_t, Mac48Address> m_staList; //!< Map of all stations currently associated to the AP with their association ID
-  /// Maps MAC addresses of associated stations to their association ID
-  std::unordered_map<Mac48Address, uint16_t, WifiAddressHash> m_addressIdMap;
   uint16_t m_numNonErpStations;              //!< Number of non-ERP stations currently associated to the AP
   uint16_t m_numNonHtStations;               //!< Number of non-HT stations currently associated to the AP
   bool m_shortSlotTimeEnabled;               //!< Flag whether short slot time is enabled within the BSS

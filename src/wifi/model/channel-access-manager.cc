@@ -333,6 +333,7 @@ ChannelAccessManager::DoGrantDcfAccess (void)
     {
       Ptr<Txop> txop = *i;
       if (txop->GetAccessStatus () == Txop::REQUESTED
+          && (!txop->IsQosTxop () || !StaticCast<QosTxop> (txop)->EdcaDisabled ())
           && GetBackoffEndFor (txop) <= Simulator::Now () )
         {
           /**
@@ -374,7 +375,7 @@ ChannelAccessManager::DoGrantDcfAccess (void)
             {
               for (auto& collidingTxop : internalCollisionTxops)
                 {
-                  collidingTxop->NotifyInternalCollision ();
+                  m_feManager->NotifyInternalCollision (collidingTxop);
                 }
               break;
             }
@@ -404,17 +405,18 @@ ChannelAccessManager::GetAccessGrantStart (bool ignoreNav) const
 {
   NS_LOG_FUNCTION (this);
   Time lastRxEnd = m_lastRxStart + m_lastRxDuration;
-  Time rxAccessStart = lastRxEnd + GetSifs ();
+  const Time& sifs = GetSifs();
+  Time rxAccessStart = lastRxEnd + sifs;
   if ((lastRxEnd <= Simulator::Now ()) && !m_lastRxReceivedOk)
     {
       rxAccessStart += GetEifsNoDifs ();
     }
-  Time busyAccessStart = m_lastBusyStart + m_lastBusyDuration + GetSifs ();
-  Time txAccessStart = m_lastTxStart + m_lastTxDuration + GetSifs ();
-  Time navAccessStart = m_lastNavStart + m_lastNavDuration + GetSifs ();
-  Time ackTimeoutAccessStart = m_lastAckTimeoutEnd + GetSifs ();
-  Time ctsTimeoutAccessStart = m_lastCtsTimeoutEnd + GetSifs ();
-  Time switchingAccessStart = m_lastSwitchingStart + m_lastSwitchingDuration + GetSifs ();
+  Time busyAccessStart = m_lastBusyStart + m_lastBusyDuration + sifs;
+  Time txAccessStart = m_lastTxStart + m_lastTxDuration + sifs;
+  Time navAccessStart = m_lastNavStart + m_lastNavDuration + sifs;
+  Time ackTimeoutAccessStart = m_lastAckTimeoutEnd + sifs;
+  Time ctsTimeoutAccessStart = m_lastCtsTimeoutEnd + sifs;
+  Time switchingAccessStart = m_lastSwitchingStart + m_lastSwitchingDuration + sifs;
   Time accessGrantedStart;
   if (ignoreNav)
     {
@@ -539,6 +541,19 @@ ChannelAccessManager::DoRestartAccessTimeoutIfNeeded (void)
                                                  &ChannelAccessManager::AccessTimeout, this);
         }
     }
+}
+
+void
+ChannelAccessManager::DisableEdcaFor (Ptr<Txop> qosTxop, Time duration)
+{
+  NS_LOG_FUNCTION (this << qosTxop << duration);
+  NS_ASSERT (qosTxop->IsQosTxop ());
+  UpdateBackoff ();
+  Time resume = Simulator::Now () + duration;
+  NS_LOG_DEBUG ("Backoff will resume at time " << resume << " with "
+                << qosTxop->GetBackoffSlots () << " remaining slot(s)");
+  qosTxop->UpdateBackoffSlotsNow (0, resume);
+  DoRestartAccessTimeoutIfNeeded ();
 }
 
 void

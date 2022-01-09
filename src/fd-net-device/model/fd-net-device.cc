@@ -296,6 +296,13 @@ FdNetDevice::StopDevice (void)
       m_fd = -1;
     }
 
+  while (!m_pendingQueue.empty ())
+    {
+      std::pair<uint8_t *, ssize_t> next = m_pendingQueue.front ();
+      m_pendingQueue.pop ();
+      FreeBuffer (next.first);
+    }
+
   DoFinishStoppingDevice ();
 }
 
@@ -414,6 +421,12 @@ FdNetDevice::ForwardUp (void)
 
   uint8_t *buf = 0;
   ssize_t len = 0;
+
+  if (m_pendingQueue.empty())
+  {
+    NS_LOG_LOGIC ("buffer is empty, probably the device is stopped.");
+    return;
+  }
 
   {
     CriticalSection cs (m_pendingReadMutex);

@@ -1,4 +1,3 @@
-
 ## -*- Mode: python; py-indent-offset: 4; indent-tabs-mode: nil; coding: utf-8; -*-
 from __future__ import print_function
 import os, os.path
@@ -125,7 +124,7 @@ def create_ns3_module(bld, name, dependencies=(), test=False):
     module.ns3_dir_location = bld.path.path_from(bld.srcnode)
 
     module.env.append_value("INCLUDES", Context.out_dir)
-    
+
     module.pcfilegen = bld(features='ns3pcfile')
     module.pcfilegen.module = module.name
 
@@ -277,17 +276,15 @@ def ns3_python_bindings(bld):
             pymod.env.append_value('LINKFLAGS', '-Wl,-Bdynamic,--no-whole-archive')
     defines = list(pymod.env['DEFINES'])
     defines.extend(['NS_DEPRECATED=', 'NS3_DEPRECATED_H'])
+    defines.extend(['NS_DEPRECATED_3_35=', 'NS3_DEPRECATED_H'])
     defines.extend(['NS_DEPRECATED_3_34=', 'NS3_DEPRECATED_H'])
-    defines.extend(['NS_DEPRECATED_3_32=', 'NS3_DEPRECATED_H'])
-    defines.extend(['NS_DEPRECATED_3_31=', 'NS3_DEPRECATED_H'])
-    defines.extend(['NS_DEPRECATED_3_30=', 'NS3_DEPRECATED_H'])
     if Utils.unversioned_sys_platform()== 'win32':
         try:
             defines.remove('_DEBUG') # causes undefined symbols on win32
         except ValueError:
             pass
     pymod.env['DEFINES'] = defines
-    # The following string should lead to includes of 
+    # The following string should lead to includes of
     # '-I.', '-Isrc/core/bindings' when compiling module_helpers.cc
     pymod.includes = Context.out_dir + ' ' + Context.out_dir + '/src/core/bindings'
     pymod.install_path = '${PYTHONARCHDIR}/ns'
@@ -442,7 +439,10 @@ def apply_ns3header(self):
     if self.module is None:
         raise WafError("'module' missing on ns3headers object %s" % self)
     ns3_dir_node = self.bld.path.find_or_declare("ns3")
-    for filename in set(self.to_list(self.source)):
+    headers_to_process = set(self.to_list(self.source))
+    if hasattr(self, 'deprecated'):
+        headers_to_process.update(set(self.to_list(self.deprecated)))
+    for filename in headers_to_process:
         src_node = self.path.find_resource(filename)
         if src_node is None:
             raise WafError("source ns3 header file %s not found" % (filename,))
@@ -458,6 +458,9 @@ def apply_ns3header(self):
             task.header_to_remove = dst_node
     self.headers = set(self.to_list(self.source))
     self.source = '' # tell WAF not to process these files further
+    if hasattr(self, 'deprecated'):
+        self.deprecated = '' # tell WAF not to process these files further
+
 
 
 class ns3header(Task.Task):
@@ -619,7 +622,6 @@ class ns3privateheader(Task.Task):
                 if ex.errno != 2:
                     raise
             return 0
-
 
 class gen_ns3_module_header(Task.Task):
     before = ['cxxprogram', 'cxxshlib', 'cxxstlib']
