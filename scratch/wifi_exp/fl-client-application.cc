@@ -27,26 +27,29 @@ namespace ns3 {
     NS_LOG_COMPONENT_DEFINE ("ClientApplication");
     NS_OBJECT_ENSURE_REGISTERED (ClientApplication);
 
-    uint32_t ClientApplication::m_conn = 0;
-    std::vector<ClientApplication *> ClientApplication::m_apps;
+
+
 
     ClientApplication::ClientApplication()
             : m_socket(0),
               m_peer(),
               m_packetSize(0),
-              m_nPackets(0),
+
+              m_bytesModel(0),
               m_dataRate(0),
-              m_sendEvent(),
-              m_running(false),
-              m_packetsSent(0),
+
 
               m_bytesModelReceived(0),
+              m_bytesModelToReceive(0),
               m_timeBeginReceivingModelFromServer(),
               m_timeEndReceivingModelFromServer(),
-              m_maxPacketSize(0),
-              m_bytesModel(0),
-              m_bytesSent(0),
+
+
+
               m_bytesModelToSend(0),
+              m_bytesSent(0),
+
+              m_sendEvent(),
               m_model() {
 
     }
@@ -140,7 +143,7 @@ namespace ns3 {
 
             m_bytesSent += bytesSent;
             m_bytesModelToSend -= bytesSent;
-            m_available -= bytesSent;
+
 
             if (m_bytesModelToSend) {
 
@@ -205,7 +208,6 @@ namespace ns3 {
     void ClientApplication::StartWriting() {
 
         m_bytesModelToSend = m_bytesModel;
-        m_startSendingTime = Simulator::Now();
 
         Send(m_socket);
     }
@@ -222,14 +224,14 @@ namespace ns3 {
                              DataRate dataRate) {
         m_socket = socket;
         m_peer = address;
-
+        m_packetSize = packetSize;
+        m_bytesModel = nBytesModel;
         m_dataRate = dataRate;
 
-        m_apps.push_back(this);
-        //m_apps[m_conn] = this;
 
-        m_bytesModel = nBytesModel;
-        m_packetSize = packetSize;
+
+
+
 
     }
 
@@ -239,9 +241,9 @@ namespace ns3 {
 
         m_model.SetDeviceType("RaspberryPi");
         m_model.SetDataSize(DoubleValue(m_bytesModel));
-        m_model.SetPacketSize(DoubleValue(m_maxPacketSize));
+        m_model.SetPacketSize(DoubleValue(m_packetSize));
 
-        m_model.SetApplication("kNN", DoubleValue(m_maxPacketSize));
+        m_model.SetApplication("kNN", DoubleValue(m_packetSize));
 
 
         m_socket->SetCloseCallbacks(
@@ -251,8 +253,8 @@ namespace ns3 {
                 MakeCallback(&ClientApplication::ConnectionSucceeded, this),
                 MakeCallback(&ClientApplication::ConnectionFailed, this));
 
-        m_running = true;
-        m_packetsSent = 0;
+
+
         m_socket->Bind();
         m_socket->Connect(m_peer);
 
@@ -263,7 +265,7 @@ namespace ns3 {
 
     void
     ClientApplication::StopApplication(void) {
-        m_running = false;
+
 
         if (m_sendEvent.IsRunning()) {
             Simulator::Cancel(m_sendEvent);
