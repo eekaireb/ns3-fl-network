@@ -36,5 +36,7 @@ build-dir/
 build/
 /.cproject
 /.project
+/.idea
+cmake-build-debug/
 
 version.cache

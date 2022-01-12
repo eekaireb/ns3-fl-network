@@ -17,23 +17,3 @@ add_custom_target(build
         SOURCES ${SRCS} ${PROJ}
         )
 
-#message(${CMAKE_SOURCE_DIR}/build)
-
-
-
-
-
-#add_custom_target(${PROJECT_NAME}
-#        COMMAND make -c Makefile
-#        SOURCES ${SRCS}
-#        )
-#message(${SRCS})
-#add_library(${PROJECT_NAME} ${SRCS})
-
-#target_include_directories(${PROJECT_NAME} PUBLIC "${CMAKE_SOURCE_DIR}/build/")
-
-
-#add_custom_command(TARGET ${PROJECT_NAME}
- #       PRE_BUILD
- #       COMMAND make -c Makefile
-  #      )
