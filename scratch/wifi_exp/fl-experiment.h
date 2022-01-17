@@ -41,34 +41,70 @@
 #include <string>
 
 namespace ns3 {
-
+    /**
+  * \ingroup fl-experiment
+  * \brief Sets up and runs fl experiments
+  */
     class Experiment {
     public:
-
+        /**
+        * \brief Constructs Experiment
+        * \param numClients      Number of clients in experiment
+        * \param networkType     Network type (wifi or ethernet)
+        * \param maxPacketSize   Max packet size for network
+        * \param txGain          TX gain for wifi network
+        * \param modelSize       Model size
+        * \param dataRate        Datarate for server
+        * \param bAsync          If running async experiment, true
+        * \param pflSymProvider  pointer to an fl-sim-interface (used to communicate with flsim)
+        */
         Experiment(int numClients, std::string &networkType, int maxPacketSize, double txGain, double modelSize,
                    std::string &dataRate, bool bAsync, FLSimProvider *pflSymProvider);
 
+        /**
+        * \brief Runs network experiment
+        * \param packetsReceived   map of <client, client sessions>
+        * \param timeOffset        Async, make timeline between rounds continious
+        * \return                  map of <client id, message>, messages to send back to flsim for each client
+        */
+        //TODO: Change to run and change packet recieved
         std::map<int, FLSimProvider::Message>
         WeakNetwork(std::map<int, std::shared_ptr<ClientSession> > &packetsReceived, ns3::Time &timeOffset);
 
     private:
+        /**
+        * \brief Set position of node in network
+        * \param node        Node to set position of
+        * \param radius      Radius location of node
+        * \param theta       Angular location of node
+        */
         void SetPosition(Ptr <Node> node, double radius, double theta);
 
+        /**
+        * \brief Gets position of node
+        * \param node   Node to get position of
+        * \return       Vector of node position
+        */
         Vector GetPosition(Ptr <Node> node);
 
+        /**
+        * \brief Sets up wifi network
+        */
         NetDeviceContainer Wifi(ns3::NodeContainer &c, std::map<int, std::shared_ptr<ClientSession> > &clients);
 
+        /**
+        * \brief Sets up ethernet network
+        */
         NetDeviceContainer Ethernet(NodeContainer &c, std::map<int, std::shared_ptr<ClientSession> > &clients);
 
-        int m_numClients;
-        std::string m_networkType;
-        int m_maxPacketSize;
-        double m_txGain;
-        double m_modelSize;
-        std::string m_dataRate;
-        bool m_bAsync;
-
-        FLSimProvider *m_flSymProvider;
+        int m_numClients;                 //!< Number of clients in experiment
+        std::string m_networkType;        //!< Network type
+        int m_maxPacketSize;              //!< Max packet size
+        double m_txGain;                  //!< TX gain (for wifi network)
+        double m_modelSize;               //!< Size of model
+        std::string m_dataRate;           //!< Datarate for server
+        bool m_bAsync;                    //!< Indicator bool for whether experiement is async
+        FLSimProvider *m_flSymProvider;   //!< pointer to an fl-sim-interface (used to communicate with flsim)
 
     };
 }

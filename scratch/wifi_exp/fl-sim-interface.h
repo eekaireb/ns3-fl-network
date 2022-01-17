@@ -46,14 +46,26 @@
 #include <memory>
 
 namespace ns3 {
+
+    /**
+    * \ingroup fl-sim-interface
+    * \brief Interface to flsim
+    */
     class FLSimProvider {
     public:
+
+        /**
+         * \breif Message used to communicate the results of a sync experiment.
+         */
         struct Message {
             uint64_t id;
             double roundTime;
             double throughput;
         };
 
+        /**
+         * \brief AsyncMessage used to communicate the result of a clients round in a async experiment.
+         */
         struct AsyncMessage {
             uint64_t id;
             double startTime;
@@ -62,39 +74,72 @@ namespace ns3 {
         };
 
 
+        /**
+         * \brief Command message used to communicate intent between
+         * flsim and fl-experiment
+         */
         struct COMMAND {
             enum class Type : uint32_t {
-                RESPONSE = 0,
+                RESPONSE       = 0,
                 RUN_SIMULATION = 1,
-                EXIT = 2,
-                INIT = 3,
-                ENDSIM = 4,
+                EXIT           = 2,
+                ENDSIM         = 3,
             };
 
             Type command;
             uint32_t nItems;
         };
 
+        /**
+         * \brief Constructor; listening port for the flsim
+         *
+         * \param port
+         */
         FLSimProvider(uint16_t port) : m_port(port) {}
 
+        /**
+         * \brief Wait for flsim to connect.
+         */
         void waitForConnection();
 
-        COMMAND::Type recv(std::map<int, std::shared_ptr<ClientSession>> &in);
+        /**
+         * \brief Receive next experiment to run
+         *
+         * \param clientSessionMap Map of client id to ClientSession
+         * \return
+         */
+        COMMAND::Type recv(std::map<int, std::shared_ptr<ClientSession>> &clientSessionMap);
 
-        void send(std::map<int, Message> &roundTime);
+        /**
+         * \brief Send the round times
+         *
+         * \param roundTimeMap
+         */
+        void send(std::map<int, Message> &roundTimeMap);
 
+        /**
+         * \brief Send an AsyncMessage
+         * Used at the end of each client round
+         * \param pMessage Pointer to an AsyncMessage to send
+         */
         void send(AsyncMessage *pMessage);
 
+        /**
+         * \brief Send end message
+         */
         void end();
 
+        /**
+         * Close socket if open
+         */
         void Close();
 
     private:
 
-        uint16_t m_port;
-        int m_server_fd;
-        int m_new_socket;
-        struct sockaddr_in m_address;
+        uint16_t m_port;              //!< Listening port number
+        int m_server_fd;              //!< Listening socket file descriptor
+        int m_new_socket;             //!< Session socket file descriptor
+        struct sockaddr_in m_address; //!< Address data structure used to configure TCP socket.
     };
 }
 #endif
