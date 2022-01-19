@@ -30,6 +30,8 @@
 #include "ns3/energy-module.h"
 #include "ns3/internet-module.h"
 #include "ns3/reliability-module.h"
+#include "ns3/yans-error-rate-model.h"
+
 namespace ns3 {
 
     Experiment::Experiment(int numClients, std::string &networkType, int maxPacketSize, double txGain, double modelSize,
@@ -81,24 +83,35 @@ namespace ns3 {
         YansWifiChannelHelper wifiChannel = YansWifiChannelHelper::Default();
 
         wifiPhy.Set("TxGain", DoubleValue(m_txGain));//-23.5) );
+        
 
-        std::string phyMode("DsssRate11Mbps");
+        wifiPhy.SetErrorRateModel("ns3::YansErrorRateModel");
+        
+        wifiChannel.AddPropagationLoss ("ns3::LogDistancePropagationLossModel",
+                                "Exponent", DoubleValue (3.0),
+                                "ReferenceDistance", DoubleValue (1.0),
+                                "ReferenceLoss", DoubleValue (46.6777));
+
+
+        std::string phyMode("HtMcs0");
 
         // Fix non-unicast data rate to be the same as that of unicast
         Config::SetDefault("ns3::WifiRemoteStationManager::NonUnicastMode",
                            StringValue(phyMode));
 
-        wifi.SetStandard(WIFI_STANDARD_80211b);
+        wifi.SetStandard(WIFI_STANDARD_80211n_5GHZ);
 
         // This is one parameter that matters when using FixedRssLossModel
         // set it to zero; otherwise, gain will be added
         wifiPhy.Set("RxGain", DoubleValue(0));
 
         // ns-3 supports RadioTap and Prism tracing extensions for 802.11b
-        wifiPhy.SetPcapDataLinkType(WifiPhyHelper::DLT_IEEE802_11_RADIO);
+     //   wifiPhy.SetPcapDataLinkType(WifiPhyHelper::DLT_IEEE802_11_RADIO);
 
         wifiChannel.SetPropagationDelay("ns3::ConstantSpeedPropagationDelayModel");
         wifiPhy.SetChannel(wifiChannel.Create());
+
+        
 
         // Add a mac and disable rate control
         wifi.SetRemoteStationManager("ns3::ConstantRateWifiManager",
@@ -118,6 +131,7 @@ namespace ns3 {
         int numClients = clients.size();
         for (int j = 1; j <= numClients; j++) {
             if (clients[j - 1]->GetInRound()) {
+
                 Experiment::SetPosition(c.Get(j), clients[j - 1]->GetRadius(), clients[j - 1]->GetTheta());
             }
         }
@@ -159,7 +173,7 @@ namespace ns3 {
         const char **strings = ethernet_strings;
         if (m_networkType.compare("wifi") == 0) {
             devices = Wifi(c, clients);
-            strings = wifi_strings;
+            strings = ethernet_strings;
         } else //assume ethernet if not specified
         {
             devices = Ethernet(c, clients);

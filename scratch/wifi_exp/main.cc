@@ -36,11 +36,11 @@ int main(int argc, char *argv[]) {
     }
     std::string dataRate = "250kbps";                  /* Application layer datarate. */
     int numClients = 20; //when numClients is 50 or greater, packets are not recieved by server
-    std::string NetworkType = "ethernet";
+    std::string NetworkType = "wifi";
     int MaxPacketSize = 256; //bytes
-    double TxGain = -0.9;
+    double TxGain = 80.0;
     double ModelSize = 1.500 * 10; // kb
-    std::string learningModel = "async";
+    std::string learningModel = "sync";
 
 
     CommandLine cmd(__FILE__);
