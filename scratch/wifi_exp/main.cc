@@ -29,6 +29,8 @@ NS_LOG_COMPONENT_DEFINE ("Wifi-Adhoc");
 
 int main(int argc, char *argv[]) {
 
+   //LogComponentEnable("PropagationLossModel", LOG_LEVEL_ALL);
+
     FLSimProvider *flSimProvider = &g_fLSimProvider;
 
     if (flSimProvider) {
@@ -37,8 +39,8 @@ int main(int argc, char *argv[]) {
     std::string dataRate = "250kbps";                  /* Application layer datarate. */
     int numClients = 20; //when numClients is 50 or greater, packets are not recieved by server
     std::string NetworkType = "wifi";
-    int MaxPacketSize = 256; //bytes
-    double TxGain = 80.0;
+    int MaxPacketSize = 1024; //bytes
+    double TxGain = 0.0; //dB + 30 = dBm
     double ModelSize = 1.500 * 10; // kb
     std::string learningModel = "sync";
 

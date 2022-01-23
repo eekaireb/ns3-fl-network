@@ -80,17 +80,14 @@ namespace ns3 {
         YansWifiPhyHelper wifiPhy;
 
 
-        YansWifiChannelHelper wifiChannel = YansWifiChannelHelper::Default();
+        YansWifiChannelHelper wifiChannel = YansWifiChannelHelper();
 
         wifiPhy.Set("TxGain", DoubleValue(m_txGain));//-23.5) );
         
 
         wifiPhy.SetErrorRateModel("ns3::YansErrorRateModel");
         
-        wifiChannel.AddPropagationLoss ("ns3::LogDistancePropagationLossModel",
-                                "Exponent", DoubleValue (3.0),
-                                "ReferenceDistance", DoubleValue (1.0),
-                                "ReferenceLoss", DoubleValue (46.6777));
+        wifiChannel.AddPropagationLoss ("ns3::FriisPropagationLossModel");
 
 
         std::string phyMode("HtMcs0");
