@@ -87,7 +87,7 @@ int main(int argc, char *argv[]) {
 
         //place the nodes at random spots from the base station
 
-        double radius = (double) (1 << (j % 4 + 2));
+        double radius = (double) (5 << (j % 4 + 2));
         //double theta = t_dist(generator);
         double theta = (1.0 / numClients) * (j);
 

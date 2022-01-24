@@ -90,14 +90,15 @@ namespace ns3 {
         wifiChannel.AddPropagationLoss ("ns3::FriisPropagationLossModel");
 
 
-        std::string phyMode("HtMcs0");
+        //std::string phyMode("HtMcs0");
+        std::string phyMode("DsssRate11Mbps");
 
         // Fix non-unicast data rate to be the same as that of unicast
         Config::SetDefault("ns3::WifiRemoteStationManager::NonUnicastMode",
                            StringValue(phyMode));
 
-        wifi.SetStandard(WIFI_STANDARD_80211n_5GHZ);
-
+        //wifi.SetStandard(WIFI_STANDARD_80211n_5GHZ);
+        wifi.SetStandard(WIFI_STANDARD_80211b);
         // This is one parameter that matters when using FixedRssLossModel
         // set it to zero; otherwise, gain will be added
         wifiPhy.Set("RxGain", DoubleValue(0));
