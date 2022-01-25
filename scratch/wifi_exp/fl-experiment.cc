@@ -82,13 +82,25 @@ namespace ns3 {
 
         YansWifiChannelHelper wifiChannel = YansWifiChannelHelper();
 
-        wifiPhy.Set("TxGain", DoubleValue(m_txGain));//-23.5) );
+        //wifiPhy.Set("TxGain", DoubleValue(m_txGain));//-23.5) );
         
 
         wifiPhy.SetErrorRateModel("ns3::YansErrorRateModel");
-        
-        wifiChannel.AddPropagationLoss ("ns3::FriisPropagationLossModel");
 
+        //90 Weak Network
+        //70 Medium
+        //30 Stong
+        //double trigger = 30.0;
+
+        Ptr<UniformRandomVariable> expVar = CreateObjectWithAttributes<UniformRandomVariable> (
+            "Min", DoubleValue (m_txGain),
+            "Max", DoubleValue (m_txGain+30)
+            );
+
+        wifiChannel.AddPropagationLoss ("ns3::RandomPropagationLossModel","Variable",PointerValue(expVar));
+
+        wifiChannel.SetPropagationDelay("ns3::ConstantSpeedPropagationDelayModel");
+        //wifiChannel.SetPropagationDelay("ns3::RandomPropagationDelayModel", "Variable", StringValue ("ns3::UniformRandomVariable[Min=0|Max=2]"));
 
         //std::string phyMode("HtMcs0");
         std::string phyMode("DsssRate11Mbps");
@@ -106,7 +118,7 @@ namespace ns3 {
         // ns-3 supports RadioTap and Prism tracing extensions for 802.11b
      //   wifiPhy.SetPcapDataLinkType(WifiPhyHelper::DLT_IEEE802_11_RADIO);
 
-        wifiChannel.SetPropagationDelay("ns3::ConstantSpeedPropagationDelayModel");
+
         wifiPhy.SetChannel(wifiChannel.Create());
 
         
