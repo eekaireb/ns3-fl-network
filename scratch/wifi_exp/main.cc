@@ -20,6 +20,9 @@
 
 #include "fl-experiment.h"
 #include <random>
+#include <chrono>
+
+using sysclock_t = std::chrono::system_clock;
 
 using namespace ns3;
 FLSimProvider g_fLSimProvider(8080);
@@ -33,16 +36,14 @@ int main(int argc, char *argv[]) {
 
     FLSimProvider *flSimProvider = &g_fLSimProvider;
 
-    if (flSimProvider) {
-        g_fLSimProvider.waitForConnection();
-    }
+
     std::string dataRate = "250kbps";                  /* Application layer datarate. */
     int numClients = 20; //when numClients is 50 or greater, packets are not recieved by server
     std::string NetworkType = "wifi";
     int MaxPacketSize = 1024; //bytes
     double TxGain = 0.0; //dB + 30 = dBm
     double ModelSize = 1.500 * 10; // kb
-    std::string learningModel = "sync";
+    std::string learningModel = "async";
 
 
     CommandLine cmd(__FILE__);
@@ -76,6 +77,22 @@ int main(int argc, char *argv[]) {
     //Experiment experiment(numClients,NetworkType,MaxPacketSize,TxGain);
 
 
+    std::time_t now = sysclock_t::to_time_t(sysclock_t::now());
+
+    char buf[80] = { 0 };
+    std::strftime(buf, sizeof(buf), "%Y-%m-%d_%H-%H-%S.csv", std::localtime(&now));
+
+    char strbuff[100];
+    snprintf(strbuff,99,"%s_%s_%.2f_%s",
+             learningModel.c_str(),
+             NetworkType.c_str(),
+             TxGain,
+             buf);
+
+    FILE *fp=fopen(strbuff,"w");
+
+
+
 
 
     std::default_random_engine generator;
@@ -96,7 +113,16 @@ int main(int argc, char *argv[]) {
     }
 
     ns3::Time timeOffset(0);
+
+    if (flSimProvider) {
+        g_fLSimProvider.waitForConnection();
+      }
+
+    int round = 0;
+
     while (true) {
+
+        round ++;
 
         if (flSimProvider) {
             FLSimProvider::COMMAND::Type type = g_fLSimProvider.recv(g_clients);
@@ -114,7 +140,9 @@ int main(int argc, char *argv[]) {
                                      ModelSize,
                                      dataRate,
                                      bAsync,
-                                     flSimProvider
+                                     flSimProvider,
+                                      fp, round
+
         );
         auto roundStats = experiment.WeakNetwork(g_clients, timeOffset);
 
@@ -127,8 +155,11 @@ int main(int argc, char *argv[]) {
             break;
         }
 
+        fflush(fp);
+
     }
 
+    fclose(fp);
     NS_LOG_UNCOND("Exiting c++");
 
     return 0;

@@ -227,12 +227,6 @@ namespace ns3 {
         m_packetSize = packetSize;
         m_bytesModel = nBytesModel;
         m_dataRate = dataRate;
-
-
-
-
-
-
     }
 
     void

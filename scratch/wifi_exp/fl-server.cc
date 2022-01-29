@@ -192,14 +192,24 @@ namespace ns3 {
             if (itr->second->m_bytesModelToReceive == 0) {
                 itr->second->m_timeEndReceivingModelFromClient = Simulator::Now();
 
+                auto endUplink =
+                    itr->second->m_timeEndReceivingModelFromClient.GetSeconds() + m_timeOffset.GetSeconds();
+                auto beginUplink =
+                    itr->second->m_timeBeginReceivingModelFromClient.GetSeconds() + m_timeOffset.GetSeconds();
+                auto beginDownlink =
+                    itr->second->m_timeBeginSendingModelFromClient.GetSeconds() + m_timeOffset.GetSeconds();
+                auto endDownlink=
+                    itr->second->m_timeEndSendingModelFromClient.GetSeconds() +  m_timeOffset.GetSeconds();
+
+                fprintf(m_fp, "%i,%u,%f,%f,%f,%f\n",
+                         m_round,
+                         m_clientSessionManager->ResolveToIdFromServer(socket),
+                         beginUplink, endUplink,
+                         beginDownlink, endDownlink
+                );
+                fflush(m_fp);
 
                 if (m_bAsync) {
-                    auto endUplink =
-                            itr->second->m_timeEndReceivingModelFromClient.GetSeconds() + m_timeOffset.GetSeconds();
-                    auto beginUplink =
-                            itr->second->m_timeBeginReceivingModelFromClient.GetSeconds() + m_timeOffset.GetSeconds();
-                    auto beginDownlink =
-                            itr->second->m_timeBeginSendingModelFromClient.GetSeconds() + m_timeOffset.GetSeconds();
 
                     if (m_fLSimProvider) {
                         FLSimProvider::AsyncMessage message;
@@ -229,7 +239,7 @@ namespace ns3 {
                     m_clientSessionManager->IncrementCycleCountFromServer(socket);
 
                     if (m_clientSessionManager->HasAllClientsFinishedFirstCycle() ||
-                        (m_clientSessionManager->GetRound(socket) == 10)) {
+                        (m_clientSessionManager->GetRound(socket) == 3)) {
                         m_clientSessionManager->Close();
                         if (m_fLSimProvider) {
                             m_fLSimProvider->end();
@@ -336,6 +346,10 @@ namespace ns3 {
             m_sendEvent = Simulator::Schedule(nextTime,
                                               &Server::SendModel, this, socket);
         }
+        else
+          {
+            itr->second->m_timeEndSendingModelFromClient=Simulator::Now();
+          }
     }
 
 } // Namespace ns3

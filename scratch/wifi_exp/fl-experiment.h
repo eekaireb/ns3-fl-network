@@ -40,6 +40,8 @@
 #include <memory>
 #include <string>
 
+#include <cstdio>
+
 namespace ns3 {
     /**
   * \ingroup fl-experiment
@@ -59,7 +61,7 @@ namespace ns3 {
         * \param pflSymProvider  pointer to an fl-sim-interface (used to communicate with flsim)
         */
         Experiment(int numClients, std::string &networkType, int maxPacketSize, double txGain, double modelSize,
-                   std::string &dataRate, bool bAsync, FLSimProvider *pflSymProvider);
+                   std::string &dataRate, bool bAsync, FLSimProvider *pflSymProvider, FILE *fp, int round);
 
         /**
         * \brief Runs network experiment
@@ -105,7 +107,8 @@ namespace ns3 {
         std::string m_dataRate;           //!< Datarate for server
         bool m_bAsync;                    //!< Indicator bool for whether experiement is async
         FLSimProvider *m_flSymProvider;   //!< pointer to an fl-sim-interface (used to communicate with flsim)
-
+        FILE *m_fp;                       //!< pointer to logfile
+        int m_round;                      //!< experiment round
     };
 }
 

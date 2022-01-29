@@ -60,6 +60,7 @@ namespace ns3 {
             ns3::Time m_timeBeginReceivingModelFromClient;    //!<Set time when connected
             ns3::Time m_timeEndReceivingModelFromClient;      //!<Set time when last message received by server
             ns3::Time m_timeBeginSendingModelFromClient;      //!<Set time when connected
+            ns3::Time m_timeEndSendingModelFromClient;        //!<Set time when last message is sent to client
             uint32_t m_bytesReceived;                         //!<Total number of bytes received
             uint32_t m_bytesSent;                             //!<Total number of bytes sent
             uint32_t m_bytesModelToSend;                      //!<Remaining number of bytes to send
@@ -90,9 +91,11 @@ namespace ns3 {
          * \param fl_sim_provider Flsim provider for this experiment
          */
          //TODO: move to cc file
-        void SetClientSessionManager(ClientSessionManager *pSessionManager, FLSimProvider *fl_sim_provider) {
+        void SetClientSessionManager(ClientSessionManager *pSessionManager, FLSimProvider *fl_sim_provider, FILE *fp, int round) {
             m_clientSessionManager = pSessionManager;
             m_fLSimProvider = fl_sim_provider;
+            m_fp=fp;
+            m_round=round;
         }
 
     protected:
@@ -184,6 +187,8 @@ namespace ns3 {
         bool m_bAsync;            //!< Flag that is used to configure server as sync or async
         FLSimProvider *m_fLSimProvider; //!< Communications interface with python simulator
         ns3::Time m_timeOffset;   //!< For async, offset between rounds
+        FILE *m_fp;               //!< File pointer for logging.
+        int m_round;              //!< Round
 
     };
 

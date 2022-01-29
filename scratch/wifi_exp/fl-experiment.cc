@@ -35,7 +35,7 @@
 namespace ns3 {
 
     Experiment::Experiment(int numClients, std::string &networkType, int maxPacketSize, double txGain, double modelSize,
-                           std::string &dataRate, bool bAsync, FLSimProvider *fl_sim_provider) :
+                           std::string &dataRate, bool bAsync, FLSimProvider *fl_sim_provider, FILE *fp, int round) :
             m_numClients(numClients),
             m_networkType(networkType),
             m_maxPacketSize(maxPacketSize),
@@ -43,7 +43,9 @@ namespace ns3 {
             m_modelSize(modelSize),
             m_dataRate(dataRate),
             m_bAsync(bAsync),
-            m_flSymProvider(fl_sim_provider) {
+            m_flSymProvider(fl_sim_provider),
+            m_fp(fp),
+            m_round(round) {
     }
 
     void
@@ -206,6 +208,8 @@ namespace ns3 {
         server_helper.SetAttribute("Async", BooleanValue(m_bAsync));
         server_helper.SetAttribute("TimeOffset", TimeValue(timeOffset));
         ApplicationContainer sinkApps = server_helper.Install(c.Get(server));
+
+
         sinkApps.Start(Seconds(0.));
 
 
@@ -238,7 +242,12 @@ namespace ns3 {
         }
 
         ClientSessionManager client_session_manager(clients);
-        sinkApps.Get(0)->GetObject<ns3::Server>()->SetClientSessionManager(&client_session_manager, m_flSymProvider);
+        sinkApps.Get(0)->GetObject<ns3::Server>()->SetClientSessionManager(
+            &client_session_manager,
+            m_flSymProvider,
+            m_fp,
+            m_round
+            );
 
 
         Simulator::Stop(Seconds(1000000.0));
