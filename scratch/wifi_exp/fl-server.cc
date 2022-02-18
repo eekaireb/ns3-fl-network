@@ -201,11 +201,21 @@ namespace ns3 {
                 auto endDownlink=
                     itr->second->m_timeEndSendingModelFromClient.GetSeconds() +  m_timeOffset.GetSeconds();
 
-                fprintf(m_fp, "%i,%u,%f,%f,%f,%f\n",
+                auto energy = FLEnergy();
+                energy.SetA(6.0);
+                energy.SetB(5.0);
+                energy.SetC(5.0);
+                energy.SetD(5.0);
+                energy.SetEpochs(5.0);
+                double compEnergy = energy.CalcComputationalEnergy(beginUplink-endDownlink);
+                double tranEnergy = energy.CalcTransmissionEnergy(endUplink-beginUplink);
+                NS_LOG_UNCOND(energy.GetA());
+                fprintf(m_fp, "%i,%u,%f,%f,%f,%f,%f,%f\n",
                          m_round,
                          m_clientSessionManager->ResolveToIdFromServer(socket),
                          beginUplink, endUplink,
-                         beginDownlink, endDownlink
+                         beginDownlink, endDownlink,
+                         compEnergy, tranEnergy
                 );
                 fflush(m_fp);
 

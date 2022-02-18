@@ -43,7 +43,7 @@ int main(int argc, char *argv[]) {
     int MaxPacketSize = 1024; //bytes
     double TxGain = 0.0; //dB + 30 = dBm
     double ModelSize = 1.500 * 10; // kb
-    std::string learningModel = "async";
+    std::string learningModel = "sync";
 
 
     CommandLine cmd(__FILE__);
