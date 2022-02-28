@@ -41,9 +41,10 @@ int main(int argc, char *argv[]) {
     int numClients = 20; //when numClients is 50 or greater, packets are not recieved by server
     std::string NetworkType = "wifi";
     int MaxPacketSize = 1024; //bytes
-    double TxGain = 0.0; //dB + 30 = dBm
+    double Loss = 0.0; //dB + 30 = dBm
     double ModelSize = 1.500 * 10; // kb
     std::string learningModel = "sync";
+    std::string deviceType = "4";
 
 
     CommandLine cmd(__FILE__);
@@ -51,11 +52,11 @@ int main(int argc, char *argv[]) {
     cmd.AddValue("NumClients", "Number of clients", numClients);
     cmd.AddValue("NetworkType", "Type of network", NetworkType);
     cmd.AddValue("MaxPacketSize", "Maximum size packet that can be sent", MaxPacketSize);
-    cmd.AddValue("TxGain", "Power transmitted from clients and server", TxGain);
+    cmd.AddValue("Loss", "Mean Propogation Loss", Loss);
     cmd.AddValue("ModelSize", "Size of model", ModelSize);
     cmd.AddValue("DataRate", "Application data rate", dataRate);
     cmd.AddValue("LearningModel", "Async or Sync federated learning", learningModel);
-
+    cmd.AddValue("DeviceType", "Device Type for Clients", deviceType);
 
     cmd.Parse(argc, argv);
 
@@ -71,8 +72,8 @@ int main(int argc, char *argv[]) {
             "{NumClients:" << numClients << ","
                                             "NetworkType:" << NetworkType << ","
                                                                              "MaxPacketSize:" << MaxPacketSize << ","
-                                                                                                                  "TxGain:"
-                           << TxGain << "}"
+                                                                                                                  "Loss:"
+                           << Loss << "}"
     );
     //Experiment experiment(numClients,NetworkType,MaxPacketSize,TxGain);
 
@@ -86,7 +87,7 @@ int main(int argc, char *argv[]) {
     snprintf(strbuff,99,"%s_%s_%.2f_%s",
              learningModel.c_str(),
              NetworkType.c_str(),
-             TxGain,
+             Loss,
              buf);
 
     FILE *fp=fopen(strbuff,"w");
@@ -136,7 +137,7 @@ int main(int argc, char *argv[]) {
         auto experiment = Experiment(numClients,
                                      NetworkType,
                                      MaxPacketSize,
-                                     TxGain,
+                                     Loss,
                                      ModelSize,
                                      dataRate,
                                      bAsync,
