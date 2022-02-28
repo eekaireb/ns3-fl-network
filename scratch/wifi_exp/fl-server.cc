@@ -202,10 +202,8 @@ namespace ns3 {
                     itr->second->m_timeEndSendingModelFromClient.GetSeconds() +  m_timeOffset.GetSeconds();
 
                 auto energy = FLEnergy();
-                energy.SetA(6.0);
-                energy.SetB(5.0);
-                energy.SetC(5.0);
-                energy.SetD(5.0);
+                energy.SetDeviceType("400");
+                energy.SetLearningModel("CIFAR-10");
                 energy.SetEpochs(5.0);
                 double compEnergy = energy.CalcComputationalEnergy(beginUplink-endDownlink);
                 double tranEnergy = energy.CalcTransmissionEnergy(endUplink-beginUplink);

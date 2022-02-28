@@ -21,7 +21,7 @@
 #include "fl-client-application.h"
 
 #include "ns3/internet-module.h"
-
+#include "fl-energy.h"
 
 namespace ns3 {
     NS_LOG_COMPONENT_DEFINE ("ClientApplication");
@@ -198,7 +198,11 @@ namespace ns3 {
 
 
                 //Todo[] Add a meaningful delay
-                Simulator::Schedule(Seconds(m_model.GetExecTime()), &ClientApplication::StartWriting, this);
+                auto energy = FLEnergy();
+                energy.SetDeviceType("400");
+                energy.SetLearningModel("CIFAR-10");
+                energy.SetEpochs(5.0);
+                Simulator::Schedule(Seconds(energy.CalcComputationTime()), &ClientApplication::StartWriting, this);
 
             }
 

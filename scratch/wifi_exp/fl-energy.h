@@ -36,10 +36,11 @@ public:
     const std::string& GetLearningModel() const;
     void SetDeviceType(std::string deviceType);
     const std::string & GetDeviceType() const;
-    double CalcComputationalPower(double time);
-    double CalcTransmissionPower(double time);
+    double CalcComputationalPower();
+    double CalcTransmissionPower();
     double CalcTransmissionEnergy(double time);
     double CalcComputationalEnergy(double time);
+    double CalcComputationTime();
 
 private:
 
@@ -47,8 +48,11 @@ private:
     double m_B;
     double m_C;
     double m_D;
+    double m_tp;
+    double m_freq;
     double m_epochs;
     double m_ModelSize;
+    double m_MAC;
     std::string m_learningModel;
     std::string m_deviceType;
 
