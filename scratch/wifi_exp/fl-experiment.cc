@@ -52,7 +52,7 @@ namespace ns3 {
     Experiment::SetPosition(Ptr <Node> node, double radius, double theta) {
         double x = radius * sin(theta * 2 * M_PI);
         double y = radius * cos(theta * 2 * M_PI);
-        double z = 0;
+        double z = 0.1;
         Ptr <MobilityModel> mobility = node->GetObject<MobilityModel>();
         mobility->SetPosition(Vector(x, y, z));
     }

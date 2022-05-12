@@ -145,9 +145,12 @@ int main(int argc, char *argv[]) {
                                       fp, round
 
         );
+        std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
         auto roundStats = experiment.WeakNetwork(g_clients, timeOffset);
-
-        NS_LOG_UNCOND(">>>>>>>>>>>>>>>>>>>>>>>>>\nTIME_OFFSET:" << timeOffset << "\n" ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
+        std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+        std::string s = std::to_string(std::chrono::duration_cast<std::chrono::nanoseconds> (end - begin).count());
+        //NS_LOG_UNCOND("TIME IN NETWORk SIM " << s);
+        NS_LOG_UNCOND(">>>>>>>>>>>>>>>>>>>>>>>>>\nTIME_OFFSET:" << timeOffset << "IN SIM "<< s << "\n" ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
 
         if (flSimProvider && !bAsync) {
             g_fLSimProvider.send(roundStats);
