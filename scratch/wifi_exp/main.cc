@@ -27,6 +27,7 @@ using sysclock_t = std::chrono::system_clock;
 using namespace ns3;
 FLSimProvider g_fLSimProvider(8080);
 std::map<int, std::shared_ptr<ClientSession> > g_clients;
+std::map<int, std::shared_ptr<ClientSession> > g_gateways;
 
 NS_LOG_COMPONENT_DEFINE ("Wifi-Adhoc");
 
@@ -34,11 +35,12 @@ int main(int argc, char *argv[]) {
 
    //LogComponentEnable("PropagationLossModel", LOG_LEVEL_ALL);
 
-    FLSimProvider *flSimProvider = &g_fLSimProvider;
+    FLSimProvider *flSimProvider = nullptr;//&g_fLSimProvider;
 
 
     std::string dataRate = "250kbps";                  /* Application layer datarate. */
-    int numClients = 20; //when numClients is 50 or greater, packets are not recieved by server
+    int numClients = 1; //when numClients is 50 or greater, packets are not recieved by server
+    int numGateways = 1;
     std::string NetworkType = "wifi";
     int MaxPacketSize = 1024; //bytes
     double Loss = 0.0; //dB + 30 = dBm
@@ -69,11 +71,9 @@ int main(int argc, char *argv[]) {
     ModelSize = ModelSize * 1000; // conversion to bytes
 
     NS_LOG_UNCOND(
-            "{NumClients:" << numClients << ","
-                                            "NetworkType:" << NetworkType << ","
-                                                                             "MaxPacketSize:" << MaxPacketSize << ","
-                                                                                                                  "Loss:"
-                           << Loss << "}"
+            "{NumGateways: " <<numGateways << "NumClients:" << numClients << ","
+                                            "NetworkType:" << NetworkType << ", MaxPacketSize:"
+                                            << MaxPacketSize << ", Loss:" << Loss << "}"
     );
     //Experiment experiment(numClients,NetworkType,MaxPacketSize,TxGain);
 
@@ -94,11 +94,22 @@ int main(int argc, char *argv[]) {
 
 
 
-
-
     std::default_random_engine generator;
     std::uniform_real_distribution<double> r_dist(1.0, 4.0);
     //std::uniform_real_distribution<double> t_dist(0,1.0);
+
+    //initialize structure for all clients
+    for (int j = 0; j < numGateways; j++) {
+
+        //place the nodes at random spots from the base station
+
+        double radius = (double) (5 << (j % 4 + 2));
+        //double theta = t_dist(generator);
+        double theta = (1.0 / numClients) * (j);
+
+        NS_LOG_UNCOND("INIT:J=" << j << " r=" << radius << " th=" << theta);
+        g_gateways[j] = std::shared_ptr<ClientSession>(new ClientSession(j, radius, theta));
+    }
 
     //initialize structure for all clients
     for (int j = 0; j < numClients; j++) {
@@ -146,7 +157,7 @@ int main(int argc, char *argv[]) {
 
         );
         std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-        auto roundStats = experiment.WeakNetwork(g_clients, timeOffset);
+        auto roundStats = experiment.WeakNetwork(g_gateways, g_clients, timeOffset);
         std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
         std::string s = std::to_string(std::chrono::duration_cast<std::chrono::nanoseconds> (end - begin).count());
         //NS_LOG_UNCOND("TIME IN NETWORk SIM " << s);

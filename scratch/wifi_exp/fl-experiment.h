@@ -71,7 +71,8 @@ namespace ns3 {
         */
         //TODO: Change to run and change packet recieved
         std::map<int, FLSimProvider::Message>
-        WeakNetwork(std::map<int, std::shared_ptr<ClientSession> > &packetsReceived, ns3::Time &timeOffset);
+        WeakNetwork( std::map<int, std::shared_ptr<ClientSession> > &gateways,
+                     std::map<int, std::shared_ptr<ClientSession> > &clients, ns3::Time &timeOffset);
 
     private:
         /**
@@ -92,7 +93,8 @@ namespace ns3 {
         /**
         * \brief Sets up wifi network
         */
-        NetDeviceContainer Wifi(ns3::NodeContainer &c, std::map<int, std::shared_ptr<ClientSession> > &clients);
+        NetDeviceContainer Wifi(ns3::NodeContainer &c, std::map<int, std::shared_ptr<ClientSession> > &gateways,
+        std::map<int, std::shared_ptr<ClientSession> > &clients);
 
         /**
         * \brief Sets up ethernet network

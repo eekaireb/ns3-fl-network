@@ -21,11 +21,13 @@
 #include "fl-experiment.h"
 #include "fl-client-application.h"
 #include "fl-server.h"
+#include "fl-gateway.h"
 #include "ns3/core-module.h"
 #include "ns3/csma-module.h"
 #include "ns3/applications-module.h"
 #include "ns3/internet-module.h"
 #include "fl-server-helper.h"
+#include "fl-gateway-helper.h"
 #include "ns3/reliability-helper.h"
 #include "ns3/energy-module.h"
 #include "ns3/internet-module.h"
@@ -75,7 +77,8 @@ namespace ns3 {
     }
 
 
-    NetDeviceContainer Experiment::Wifi(NodeContainer &c, std::map<int, std::shared_ptr<ClientSession> > &clients) {
+    NetDeviceContainer Experiment::Wifi(NodeContainer &c, std::map<int, std::shared_ptr<ClientSession> > &gateways,
+                                        std::map<int, std::shared_ptr<ClientSession> > &clients) {
 
         WifiHelper wifi;
         WifiMacHelper wifiMac;
@@ -140,6 +143,14 @@ namespace ns3 {
         mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
         mobility.Install(c);
 
+        int numGateways = gateways.size();
+        for (int j = 1; j <= numGateways; j++) {
+            if (gateways[j - 1]->GetInRound()) {
+
+                Experiment::SetPosition(c.Get(j), gateways[j - 1]->GetRadius(), gateways[j - 1]->GetTheta());
+            }
+        }
+
         int numClients = clients.size();
         for (int j = 1; j <= numClients; j++) {
             if (clients[j - 1]->GetInRound()) {
@@ -173,18 +184,22 @@ namespace ns3 {
             };
 
     std::map<int, FLSimProvider::Message>
-    Experiment::WeakNetwork(std::map<int, std::shared_ptr<ClientSession> > &clients, ns3::Time &timeOffset) {
+    Experiment::WeakNetwork(std::map<int, std::shared_ptr<ClientSession> > &gateways,
+                            std::map<int, std::shared_ptr<ClientSession> > &clients, ns3::Time &timeOffset) {
 
         int server = 0;
+        int gateway = 1;
         int numClients = clients.size();
+        int numGateways = gateways.size();
 
         NodeContainer c;
-        c.Create(numClients + 1);
+        c.Create(numGateways + numClients + 1);
+
 
         NetDeviceContainer devices;
         const char **strings = ethernet_strings;
         if (m_networkType.compare("wifi") == 0) {
-            devices = Wifi(c, clients);
+            devices = Wifi(c, gateways, clients);
             strings = ethernet_strings;
         } else //assume ethernet if not specified
         {
@@ -207,22 +222,50 @@ namespace ns3 {
         server_helper.SetAttribute("DataRate", StringValue(m_dataRate));
         server_helper.SetAttribute("Async", BooleanValue(m_bAsync));
         server_helper.SetAttribute("TimeOffset", TimeValue(timeOffset));
+
+
+
+
         ApplicationContainer sinkApps = server_helper.Install(c.Get(server));
 
 
-        sinkApps.Start(Seconds(0.));
+        sinkApps.Start(Seconds(10.));
 
 
         Address sinkAddress(InetSocketAddress(interfaces.GetAddress(server, 0), 80));
         std::map<Ipv4Address, int> m_addrMap;
+        //initialize gateways
+
+        GatewayHelper gateway_helper("ns3::TcpSocketFactory", InetSocketAddress(Ipv4Address::GetAny(), 80));
+        gateway_helper.SetAttribute("MaxPacketSize", UintegerValue(m_maxPacketSize));
+        gateway_helper.SetAttribute("BytesModel", UintegerValue(m_modelSize));
+        gateway_helper.SetAttribute("DataRate", StringValue(m_dataRate));
+        gateway_helper.SetAttribute("Async", BooleanValue(m_bAsync));
+        gateway_helper.SetAttribute("TimeOffset", TimeValue(timeOffset));
+        ApplicationContainer gatewayApps = gateway_helper.Install(c.Get(gateway));
+        gatewayApps.Start(Seconds(0.));
+        Address gatewayAddress(InetSocketAddress(interfaces.GetAddress(gateway, 0), 80));
+
+
+        Ptr <Socket> gw_source = Socket::CreateSocket(c.Get(1), TcpSocketFactory::GetTypeId());
+
+        gw_source->SetAttribute("ConnCount", UintegerValue(1000));
+        gw_source->SetAttribute("DataRetries", UintegerValue(100));
+
+
+        //Ptr <Gateway> gw_app = CreateObject<Gateway>();
+        gatewayApps.Get(0)->GetObject<ns3::Gateway>()->Setup
+            (gw_source, sinkAddress, m_maxPacketSize, m_modelSize, std::string(strings[0]));
+       // c.Get(1)->AddApplication(gw_app);
+        gateways[0]->SetClient(gw_source);
         //initialize clients
         for (int j = 1; j <= numClients; j++) {
             if (clients[j - 1]->GetInRound()) {
 
                 // Experiment::SetPosition (c.Get (j), clients[j - 1]->radius, clients[j - 1]->theta);
-                Ptr <Socket> source = Socket::CreateSocket(c.Get(j), TcpSocketFactory::GetTypeId());
+                Ptr <Socket> source = Socket::CreateSocket(c.Get(j+1), TcpSocketFactory::GetTypeId());
 
-                m_addrMap[c.Get((j))->GetObject<Ipv4>()->GetAddress(1, 0).GetLocal()] = j - 1;
+                m_addrMap[c.Get((j+1))->GetObject<Ipv4>()->GetAddress(1, 0).GetLocal()] = j - 1;
 
                 source->SetAttribute("ConnCount", UintegerValue(1000));
                 source->SetAttribute("DataRetries", UintegerValue(100));
@@ -230,8 +273,8 @@ namespace ns3 {
 
                 Ptr <ClientApplication> app = CreateObject<ClientApplication>();
 
-                app->Setup(source, sinkAddress, m_maxPacketSize, m_modelSize, std::string(strings[j % 6]));
-                c.Get(j)->AddApplication(app);
+                app->Setup(source, gatewayAddress, m_maxPacketSize, m_modelSize, std::string(strings[j % 6]));
+                c.Get(j+1)->AddApplication(app);
                 app->SetStartTime(Seconds(1.));
                 app->SetStopTime(Seconds(1000000.0));
 
@@ -242,13 +285,20 @@ namespace ns3 {
         }
 
         ClientSessionManager client_session_manager(clients);
-        sinkApps.Get(0)->GetObject<ns3::Server>()->SetClientSessionManager(
+        gatewayApps.Get(0)->GetObject<ns3::Gateway>()->SetClientSessionManager(
             &client_session_manager,
             m_flSymProvider,
             m_fp,
             m_round
             );
 
+        ClientSessionManager gw_session_manager(gateways);
+        sinkApps.Get(0)->GetObject<ns3::Server>()->SetClientSessionManager(
+                &gw_session_manager,
+                m_flSymProvider,
+                m_fp,
+                m_round
+        );
 
         Simulator::Stop(Seconds(1000000.0));
         Simulator::Run();
@@ -270,7 +320,7 @@ namespace ns3 {
                 auto clientAddress = InetSocketAddress::ConvertFrom(itr->second->m_address).GetIpv4();
 
                 NS_LOG_UNCOND(
-                        "[SERVER]  " << clientAddress << " -> 10.1.1.1" << std::endl <<
+                        "[GATEWAY TO SERVER]  " << clientAddress << " -> 10.1.1.1" << std::endl <<
                                      "  Sent=     " << itr->second->m_bytesSent << " bytes" << std::endl <<
                                      "  Recv=     " << itr->second->m_bytesReceived << " bytes" << std::endl <<
                                      "  Begin uplink=" << beginUplink.As(Time::S) << std::endl <<
@@ -281,6 +331,34 @@ namespace ns3 {
                 stats[clientAddress].throughput = itr->second->m_bytesReceived * 8.0 / 1000.0 /
                                                   ((endUplink.GetDouble() - beginUplink.GetDouble()) / 1000000000.0);
 
+            }
+
+            for (int j = 1; j <= numGateways; j++) {
+                if (gateways[j - 1]->GetInRound()) {
+                    auto app = gateways[j - 1]->GetClient()->GetNode()->GetApplication(0);
+                    UintegerValue sent;
+                    UintegerValue rec;
+                    TimeValue begin;
+                    TimeValue end;
+                    Ipv4Address clientAddress;
+                    app->GetAttribute("BytesSentToServer", sent);
+                    app->GetAttribute("BytesReceivedFromServer", rec);
+                    app->GetAttribute("BeginDownlink", begin);
+                    app->GetAttribute("EndDownlink", end);
+
+                    clientAddress = InetSocketAddress::ConvertFrom(
+                            InetSocketAddress(interfaces.GetAddress(j, 0), 80)).GetIpv4();
+                    NS_LOG_UNCOND(
+                            "[SERVER TO GATEWAY]  " << "10.1.1.1 -> " << clientAddress << std::endl <<
+                                         "  Sent=" << sent.Get() << " bytes" << std::endl <<
+                                         "  Recv=" << rec.Get() << " bytes" << std::endl <<
+                                         "  Begin downlink=" << begin.Get().As(Time::S) << std::endl <<
+                                         "  End downlink=" << end.Get().As(Time::S)
+                    );
+                   stats[clientAddress].roundTime =
+                           (stats[clientAddress].roundTime - begin.Get().GetDouble()) / 1000000000.0;
+
+                }
             }
 
             for (int j = 1; j <= numClients; j++) {
