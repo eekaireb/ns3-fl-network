@@ -105,7 +105,16 @@ namespace ns3 {
                               TypeId::ATTR_SGC,
                               TimeValue(),
                               MakeTimeAccessor(&ClientApplication::m_timeEndReceivingModelFromServer),
-                              MakeTimeChecker());
+                              MakeTimeChecker())
+                              
+                              
+                .AddAttribute("Peer",
+                              "Address of gateway/server",
+                              TypeId::ATTR_SGC,
+                              AddressValue(),
+                              MakeAddressAccessor(&ClientApplication::m_peer),
+
+                              MakeAddressChecker());
         return tid;
     }
 
@@ -165,7 +174,6 @@ namespace ns3 {
 
         NS_LOG_UNCOND("Client Connected");
         socket->SetRecvCallback(MakeCallback(&ClientApplication::HandleRead, this));
-
         m_bytesModelToReceive = m_bytesModel;
         m_bytesModelToSend = 0;
 
@@ -182,7 +190,7 @@ namespace ns3 {
                 break;
             }
 
-            if (m_bytesModelReceived % m_bytesModel == 0 && m_bytesModelReceived != 0) {
+            if (m_bytesModelReceived % m_bytesModel == 0 /*&& m_bytesModelReceived != 0*/) {
                 m_timeBeginReceivingModelFromServer = Simulator::Now();
             }
 
@@ -256,7 +264,8 @@ namespace ns3 {
         m_socket->Bind();
         m_socket->Connect(m_peer);
 
-        m_timeBeginReceivingModelFromServer = Simulator::Now();
+
+       // m_timeBeginReceivingModelFromServer = Simulator::Now();
 
         m_socket->SetRecvCallback(MakeCallback(&ClientApplication::HandleRead, this));
     }

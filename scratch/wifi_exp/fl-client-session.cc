@@ -27,8 +27,8 @@
 
 namespace ns3 {
 
-    ClientSession::ClientSession(int clientID_, double radius_, double theta_) :
-            m_client(nullptr), m_radius(radius_), m_theta(theta_), m_clientID(clientID_), m_cycle(0), m_inRound(true),
+    ClientSession::ClientSession(int clientID_, double x, double y, double z) :
+            m_client(nullptr), m_x(x), m_y(y),m_z(z), m_clientID(clientID_), m_cycle(0), m_inRound(true),
             m_dropOut(false)
     {
 
@@ -68,15 +68,21 @@ namespace ns3 {
         m_cycle++;
     }
 
-    double ClientSession::GetRadius()
+    double ClientSession::GetX()
     {
-        return m_radius;
+        return m_x;
     }
 
-    double ClientSession::GetTheta()
+    double ClientSession::GetY()
     {
-        return m_theta;
+        return m_y;
     }
+
+    double ClientSession::GetZ()
+    {
+        return m_z;
+    }
+
 
     int ClientSession::GetClientId()
     {
@@ -84,11 +90,10 @@ namespace ns3 {
     }
 
 
-
-
-
-    ClientSessionManager::ClientSessionManager(std::map<int, std::shared_ptr<ClientSession> > &inn) :
-            m_clientSessionById(inn), m_nInRound(0), m_nInRoundFirstCycleDone(0) {
+void ClientSessionManager::Init()
+{
+    NS_LOG_UNCOND("SIZE=" << m_clientSessionById.size() << " " << this);
+    
         for (auto itr = m_clientSessionById.begin(); itr != m_clientSessionById.end(); itr++) {
             if (itr->second->GetInRound()) {
                 auto clientAddress = itr->second->GetClient()->GetNode()->
@@ -98,6 +103,15 @@ namespace ns3 {
                 m_nInRound++;
             }
         }
+        
+}
+
+
+    ClientSessionManager::ClientSessionManager(std::map<int, std::shared_ptr<ClientSession> > &inn) :
+            m_clientSessionById(inn), m_nInRound(0), m_nInRoundFirstCycleDone(0) {
+
+
+    NS_LOG_UNCOND("PSIZE=" << m_clientSessionById.size() << " " << this);
     }
 
     int ClientSessionManager::ResolveToId(ns3::Ipv4Address &address) {

@@ -56,7 +56,9 @@ namespace ns3 {
         * \param radius_      Radius Location for Client
         * \param theta_       Angular Location for Client (Radians)
         */
-        ClientSession(int clientID_, double radius_, double theta_) ;
+        ClientSession(int clientID_, double x, double y, double z) ;
+
+ 
 
         /**
         * \brief Gets the socket of client
@@ -103,13 +105,21 @@ namespace ns3 {
         * \brief Get radial location of client
         * \return Radial location of client
         */
-        double GetRadius();
+        double GetX();
 
         /**
         * \brief Get angular location of client
         * \return Angular location of client
         */
-        double GetTheta();
+        double GetY();
+
+
+        /**
+        * \brief Get angular location of client
+        * \return Angular location of client
+        */
+        double GetZ();
+
 
         /**
         * \brief Get id of client
@@ -118,11 +128,20 @@ namespace ns3 {
         int GetClientId();
 
 
+        /**
+        * \brief Get id of gateway
+        * \return Client id
+        */
+      //  int GetGatewayId();
+
+
     private:
         ns3::Ptr<ns3::Socket> m_client;     //!< Socket of client
-        double m_radius;                    //!< Radius location of client
-        double m_theta;                     //!< Angular location of client
+        double m_x;                    //!< Radius location of client
+        double m_y;                     //!< Angular location of client
+        double m_z;                     //!< Angular location of client
         int m_clientID;                     //!< Client id
+        //int m_gatewayId;                    //!< GatewayId id
         int m_cycle;                        //!< Client cycle for async round
         bool m_inRound;                     //!< Indicates whether client should participate in round
         bool m_dropOut;                     //!< Indicates if client has dropped out of round
@@ -139,7 +158,7 @@ namespace ns3 {
         * \param inn    map of < client ids, client sessions >
         */
         ClientSessionManager(std::map<int, std::shared_ptr<ClientSession> > &inn);
-
+       void Init();
         /**
         * \brief Get client id from client address
         * \param address  Client address
@@ -184,9 +203,14 @@ namespace ns3 {
         */
         ns3::Ipv4Address ResolveToAddress(int id);
 
+        std::map<int, std::shared_ptr<ClientSession> > & getClientMap()
+        {
+            return m_clientSessionById;
+        }
+
     private:
         std::map<ns3::Ipv4Address, int> m_clientSessionByAddress;                 //!< maps Client Address to Client id
-        std::map<int, std::shared_ptr<ClientSession> > &m_clientSessionById;      //!< maps client id to client session
+        std::map<int, std::shared_ptr<ClientSession> > m_clientSessionById;      //!< maps client id to client session
         int m_nInRound;                                                           //!< number of clients in round
         int m_nInRoundFirstCycleDone;                                             //!< number of clients with first cycle done
 

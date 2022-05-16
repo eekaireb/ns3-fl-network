@@ -22,6 +22,55 @@
 #include <random>
 #include <chrono>
 
+#include<stdio.h>
+#include<stdint.h>
+#include<vector>
+
+
+class Point{
+        public:
+        double m_x;
+        double m_y;
+        double m_z;
+
+        Point(double x, double y, double z):m_x(x), m_y(y), m_z(z){}
+};
+
+//NodeConfiguration
+
+void ReadCsvCfg(const char *fn, std::vector<NodeConfiguration> &points)
+{
+        FILE *stream = fopen(fn,"r");
+        char *line = NULL;
+        size_t len = 0;
+        ssize_t nread;
+        int32_t x,y;
+
+
+        while ((nread = getline(&line, &len, stream)) != -1) {
+                sscanf(line,"%i,%i",&x,&y);
+                points.emplace_back(NodeConfiguration(x,y));
+        }
+}
+
+
+void ReadCsvLoc(const char *fn, std::vector<Point> &points)
+{
+        FILE *stream = fopen(fn,"r");
+        char *line = NULL;
+        size_t len = 0;
+        ssize_t nread;
+        double x,y,z;
+
+
+        while ((nread = getline(&line, &len, stream)) != -1) {
+                sscanf(line,"%lf,%lf,%lf",&x,&y,&z);
+                points.push_back(Point(x,y,z));
+        }
+}
+
+
+
 using sysclock_t = std::chrono::system_clock;
 
 using namespace ns3;
@@ -38,13 +87,22 @@ int main(int argc, char *argv[]) {
     FLSimProvider *flSimProvider = nullptr;//&g_fLSimProvider;
 
 
-    std::string dataRate = "250kbps";                  /* Application layer datarate. */
-    int numClients = 1; //when numClients is 50 or greater, packets are not recieved by server
-    int numGateways = 1;
+    std::vector<Point> client_points;
+    std::vector<Point> gateway_points;
+    std::vector<NodeConfiguration> nodeConfiguration;
+    ReadCsvLoc("client_loc.txt",client_points);
+    ReadCsvLoc("gateway_loc.txt",gateway_points);
+    ReadCsvCfg("gw0.txt", nodeConfiguration);
+
+
+    std::string dataRate = "256kbps";                  /* Application layer datarate. */
+    int numClients = client_points.size();
+    ; //when numClients is 50 or greater, packets are not recieved by server
+    int numGateways = gateway_points.size();
     std::string NetworkType = "wifi";
     int MaxPacketSize = 1024; //bytes
     double Loss = 0.0; //dB + 30 = dBm
-    double ModelSize = 1.500 * 10; // kb
+    double ModelSize = 600; // kb
     std::string learningModel = "sync";
     std::string deviceType = "4";
 
@@ -66,6 +124,7 @@ int main(int argc, char *argv[]) {
     if (learningModel.compare("async") == 0) {
         bAsync = true;
     }
+
 
 
     ModelSize = ModelSize * 1000; // conversion to bytes
@@ -98,31 +157,21 @@ int main(int argc, char *argv[]) {
     std::uniform_real_distribution<double> r_dist(1.0, 4.0);
     //std::uniform_real_distribution<double> t_dist(0,1.0);
 
-    //initialize structure for all clients
-    for (int j = 0; j < numGateways; j++) {
-
-        //place the nodes at random spots from the base station
-
-        double radius = (double) (5 << (j % 4 + 2));
-        //double theta = t_dist(generator);
-        double theta = (1.0 / numClients) * (j);
-
-        NS_LOG_UNCOND("INIT:J=" << j << " r=" << radius << " th=" << theta);
-        g_gateways[j] = std::shared_ptr<ClientSession>(new ClientSession(j, radius, theta));
+    int cnt=0;
+    for(auto o:gateway_points)
+    {
+        g_gateways[cnt] = std::shared_ptr<ClientSession>(new ClientSession(cnt, o.m_x, o.m_y, o.m_z));
+	cnt++;
     }
 
-    //initialize structure for all clients
-    for (int j = 0; j < numClients; j++) {
-
-        //place the nodes at random spots from the base station
-
-        double radius = (double) (5 << (j % 4 + 2));
-        //double theta = t_dist(generator);
-        double theta = (1.0 / numClients) * (j);
-
-        NS_LOG_UNCOND("INIT:J=" << j << " r=" << radius << " th=" << theta);
-        g_clients[j] = std::shared_ptr<ClientSession>(new ClientSession(j, radius, theta));
+    cnt=0;
+    for(auto o:client_points)
+    {
+        g_clients[cnt] = std::shared_ptr<ClientSession>(new ClientSession(cnt, o.m_x, o.m_y, o.m_z));
+	cnt++;
     }
+
+
 
     ns3::Time timeOffset(0);
 
@@ -157,7 +206,7 @@ int main(int argc, char *argv[]) {
 
         );
         std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-        auto roundStats = experiment.WeakNetwork(g_gateways, g_clients, timeOffset);
+        auto roundStats = experiment.WeakNetwork(g_gateways, g_clients, timeOffset,nodeConfiguration);
         std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
         std::string s = std::to_string(std::chrono::duration_cast<std::chrono::nanoseconds> (end - begin).count());
         //NS_LOG_UNCOND("TIME IN NETWORk SIM " << s);

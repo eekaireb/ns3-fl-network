@@ -69,20 +69,6 @@ namespace ns3 {
             uint32_t m_bytesModelToReceive;                   //!<Remaining number of bytes to receive
             ns3::Address m_address;                           //!<Address of the connected client
 
-
-            //Client to gateway
-            ns3::Time m_timeBeginReceivingModelFromServer;    //!<Set time when connected
-            ns3::Time m_timeEndReceivingModelFromServer;      //!<Set time when last message received by server
-            ns3::Time m_timeBeginSendingModelFromServer;      //!<Set time when connected
-            ns3::Time m_timeEndSendingModelFromServer;        //!<Set time when last message is sent to client
-            uint32_t m_bytesReceivedFromServer;                         //!<Total number of bytes received
-            uint32_t m_bytesSentToServer;                             //!<Total number of bytes sent
-            uint32_t m_bytesModelToSendToServer;                      //!<Remaining number of bytes to send
-            uint32_t m_bytesModelToReceiveFromServer;                   //!<Remaining number of bytes to receive
-            //ns3::Address m_address;                           //!<Address of the connected client
-
-
-
         };
 
 
@@ -134,12 +120,12 @@ namespace ns3 {
          *        to send packets until there are no remaining bytes to be sent.
          * \param socket Connected client socket in which to send bytes.
          */
-        void SendModel(Ptr <Socket> socket);
+        void SendModelToClient(Ptr <Socket> socket);
 
         /**
          * \brief Begins the process of sending the model to the client
          */
-        void StartSendingModel(Ptr <Socket> socket);
+        void StartSendingModelToClient(Ptr <Socket> socket);
 
         /**
          * \brief
@@ -190,7 +176,7 @@ namespace ns3 {
         void PacketReceived(const Ptr <Packet> &p, const Address &from, const Address &localAddress);
 
 
-        Ptr <Socket> m_socket;                                                    //!< Listening socket
+        Ptr <Socket> m_gatewayListeningSocket;                                                    //!< Listening socket
         std::map <Ptr<Socket>, std::shared_ptr<ClientSessionData>> m_socketList;  //!< the accepted sockets
         ClientSessionManager *m_clientSessionManager;                             //!< Container that holds all client sessions
         Address m_local;                                                          //!< Local address to bind to
@@ -227,25 +213,25 @@ namespace ns3 {
          * used to trigger receiving for model from server
          * \param socket The connected socket
          */
-        void ConnectionSucceeded (Ptr <Socket> socket);
+        void ConnectionSucceededToServer (Ptr <Socket> socket);
 
         /**
          * \brief Callback function to log that socket closed normally
          * \param socket The closed socket
          */
-        void NormalClose (Ptr <Socket> socket);
+        void NormalCloseToServer (Ptr <Socket> socket);
 
         /**
          * \brief Callback function to log that socket closed with an error
          * \param socket The closed socket
          */
-        void ErrorClose (Ptr <Socket> socket);
+        void ErrorCloseToServer (Ptr <Socket> socket);
 
         /**
          * \brief Callback function for when connection to remote host failed
          * \param socket socket that failed to connect to remote host
          */
-        void ConnectionFailed (Ptr <Socket> socket);
+        void ConnectionFailedToServer (Ptr <Socket> socket);
 
         /**
          * \brief Upon a received packet, update the bytes left to receive
@@ -281,6 +267,8 @@ namespace ns3 {
         uint32_t m_serverBytesSent;                     //!< Number of bytes sent to server
 
         EventId m_serverSendEvent;                      //!< Send event handle used to cancel a pending event
+
+        bool m_hasFullModel;
 
     };
 

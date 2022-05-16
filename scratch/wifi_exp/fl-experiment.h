@@ -42,6 +42,16 @@
 
 #include <cstdio>
 
+
+class NodeConfiguration
+{
+    public:
+    NodeConfiguration(int32_t client, int32_t gateway):client_node(client), gateway_node(gateway){}
+    int32_t client_node;
+    int32_t gateway_node;
+};
+
+
 namespace ns3 {
     /**
   * \ingroup fl-experiment
@@ -72,7 +82,7 @@ namespace ns3 {
         //TODO: Change to run and change packet recieved
         std::map<int, FLSimProvider::Message>
         WeakNetwork( std::map<int, std::shared_ptr<ClientSession> > &gateways,
-                     std::map<int, std::shared_ptr<ClientSession> > &clients, ns3::Time &timeOffset);
+                     std::map<int, std::shared_ptr<ClientSession> > &clients, ns3::Time &timeOffset, std::vector<NodeConfiguration > &clientToGateway);
 
     private:
         /**
@@ -81,7 +91,7 @@ namespace ns3 {
         * \param radius      Radius location of node
         * \param theta       Angular location of node
         */
-        void SetPosition(Ptr <Node> node, double radius, double theta);
+        void SetPosition(Ptr <Node> node, double x, double y, double z);
 
         /**
         * \brief Gets position of node
@@ -99,7 +109,7 @@ namespace ns3 {
         /**
         * \brief Sets up ethernet network
         */
-        NetDeviceContainer Ethernet(NodeContainer &c, std::map<int, std::shared_ptr<ClientSession> > &clients);
+        NetDeviceContainer Ethernet(NodeContainer &c);
 
         int m_numClients;                 //!< Number of clients in experiment
         std::string m_networkType;        //!< Network type
