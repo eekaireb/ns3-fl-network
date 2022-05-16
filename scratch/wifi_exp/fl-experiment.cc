@@ -181,14 +181,14 @@ namespace ns3 {
             index++;
         }
 
-       //int ccc=c.GetN();
-       // for(int i=numGateways;i<ccc;i++)
-       // {
-       //     Vector v=GetPosition(c.Get(i));
-       // 
-        //    
-        //    NS_LOG_UNCOND(v.x << "," << v.y << "," << v.z);
-      //  }
+       ///int ccc=c.GetN();
+        for(int i=0;i<2;i++)
+        {
+            Vector v=GetPosition(c.Get(i));
+        
+            
+            NS_LOG_UNCOND(v.x << "," << v.y << "," << v.z);
+        }
 
         return devices;
 
