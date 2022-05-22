@@ -159,8 +159,12 @@ namespace ns3 {
         NetDeviceContainer devices = wifi.Install(wifiPhy, wifiMac, c);
 
 
-        
-        Experiment::SetPosition(c.Get(0),0,0,10.0);
+
+        //0.0,0.0,163.15896056
+        //-712.7249999999847,280.9854000000179,139.91086307
+        //-385.35599999993053,-128.99309999997897,49.58342741
+
+        Experiment::SetPosition(c.Get(0),-385.35599999993053,-128.99309999997897,49.58342741);
         int index = 1;
 
         int numGateways = gateways.size();
@@ -565,7 +569,7 @@ namespace ns3 {
         }
 
 
-            FILE *fp=fopen("gw0.csv","w");
+            FILE *fp=fopen("gw5.csv","w");
             for (auto itr: stats) {
 
                 auto idx = m_clientIdAddrMap.find(itr.first);

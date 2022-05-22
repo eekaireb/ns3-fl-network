@@ -90,8 +90,8 @@ int main(int argc, char *argv[]) {
     std::vector<Point> client_points;
     std::vector<Point> gateway_points;
     std::vector<NodeConfiguration> nodeConfiguration;
-    ReadCsvLoc("client_loc.txt",client_points);
-    ReadCsvLoc("gateway_loc.txt",gateway_points);
+    ReadCsvLoc("client_loc2.txt",client_points);
+    ReadCsvLoc("gateway_loc2.txt",gateway_points);
     ReadCsvCfg("gw0.txt", nodeConfiguration);
 
 
