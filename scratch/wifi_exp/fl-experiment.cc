@@ -33,6 +33,7 @@
 #include "ns3/internet-module.h"
 #include "ns3/reliability-module.h"
 #include "ns3/yans-error-rate-model.h"
+#include "ns3/point-to-point-helper.h"
 
 
 
@@ -40,6 +41,7 @@
 #include "ns3/hybrid-buildings-propagation-loss-model.h"
 #include "ns3/propagation-environment.h"
 #include <ns3/buildings-helper.h>
+#include <sstream>
 
 namespace ns3 {
 
@@ -82,6 +84,69 @@ namespace ns3 {
         csmaDevices = csma.Install(c);
 
         return csmaDevices;
+    }
+
+
+    NetDeviceContainer Experiment::Wifi(NodeContainer &c) 
+    {
+
+        WifiHelper wifi;
+        WifiMacHelper wifiMac;
+        YansWifiPhyHelper wifiPhy;
+
+
+        YansWifiChannelHelper wifiChannel = YansWifiChannelHelper();
+
+        MobilityHelper mobility;
+        mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
+        mobility.Install(c);
+
+        ns3::Ptr<ns3::MobilityBuildingInfo> buildingInfoSensors = ns3::CreateObject<ns3::MobilityBuildingInfo>();
+        ns3::BuildingsHelper::Install( c );
+
+
+        
+        wifiPhy.SetErrorRateModel("ns3::YansErrorRateModel");
+
+        wifiChannel.AddPropagationLoss("ns3::HybridBuildingsPropagationLossModel",  "Environment",
+                                       EnumValue(UrbanEnvironment), "CitySize", EnumValue(LargeCity));
+
+
+        wifiChannel.SetPropagationDelay("ns3::ConstantSpeedPropagationDelayModel");
+ 	
+	    wifiPhy.SetChannel(wifiChannel.Create());
+
+
+        std::string phyMode("HtMcs0");
+
+
+        // Fix non-unicast data rate to be the same as that of unicast
+        Config::SetDefault("ns3::WifiRemoteStationManager::NonUnicastMode",
+                           StringValue(phyMode));
+
+        wifi.SetStandard(WIFI_STANDARD_80211n_5GHZ);
+
+        // This is one parameter that matters when using FixedRssLossModel
+        // set it to zero; otherwise, gain will be added
+        wifiPhy.Set("RxGain", DoubleValue(0));
+
+
+
+
+        // Add a mac and disable rate control
+        wifi.SetRemoteStationManager("ns3::ConstantRateWifiManager",
+                                     "DataMode", StringValue(phyMode),
+                                     "ControlMode", StringValue(phyMode));
+
+        // Set it to adhoc mode
+        wifiMac.SetType("ns3::AdhocWifiMac");
+
+
+        NetDeviceContainer devices = wifi.Install(wifiPhy, wifiMac, c);
+
+
+        return devices;
+
     }
 
 
@@ -267,13 +332,104 @@ namespace ns3 {
             gatewayClientSessions.push_back(std::make_shared<ClientSessionManager>(o.second));
         }
 
-        NodeContainer eth(gateway_c,server_c);
-        NodeContainer wifi(gateway_c,clients_c);
+
+
+
+//////////////////////////////////////////////////
+
+        InternetStackHelper internet;
+        internet.Install(c);
+
+
+        NodeContainer eth(server_c,gateway_c);
+        NetDeviceContainer ethDevices = Ethernet(eth);
+
+
+
+        //For each gateway; assign wifi network
+        std::vector<NodeContainer> gatewayClientNodeContiners;
+
+        int pindex = 0;
+        for(auto itr=gateway_c.Begin(); itr!=gateway_c.End(); itr++, pindex ++)
+        {
+ 
+
+            auto temp = NodeContainer(*itr);
+
+            for(auto o: clientToGateway)
+            {
+                if(o.gateway_node == pindex)
+                {
+                    temp.Add(clients_c.Get(o.client_node));
+                }
+            }
+            
+            gatewayClientNodeContiners.push_back(temp);            
+        }
+
+
+
+
+
+        Ipv4AddressHelper ipv4;
+        ipv4.SetBase("10.1.1.0", "255.255.255.0");
+
+        //Assign IP to each ethDevice
+        auto ethIpv4InterfaceContainer = ipv4.Assign (ethDevices);
+
+
+        //Assign IP to each wireleses device
+        int cnt=3;
+        std::vector<NetDeviceContainer> gatewayClientNetDeviceContiners;
+        std::vector<Ipv4InterfaceContainer> gatewayClientIpv4InterfaceContainers;
+        for(auto o:gatewayClientNodeContiners)
+        {
+            auto w=Wifi(o);
+            std::string str("10." + std::to_string(cnt++) + ".1.0");
+            
+            ipv4.SetBase(str.c_str(), "255.255.255.0");
+
+            gatewayClientIpv4InterfaceContainers.push_back(ipv4.Assign(w));
+            gatewayClientNetDeviceContiners.push_back(w);
+        }
+
+#if 1
+        int index = 0;
+        for(auto itr=gateway_c.Begin(); itr!=gateway_c.End(); itr++,index++)
+        {
+            Experiment::SetPosition(*itr, gateways[index]->GetX(), gateways[index]->GetY(), gateways[index]->GetZ() );
+        }
+
+        index = 0;
+        for(auto itr=clients_c.Begin(); itr!=clients_c.End(); itr++,index++)
+        {
+            Experiment::SetPosition(*itr, clients[index]->GetX(), clients[index]->GetY(), clients[index]->GetZ() );
         
+        }
+#endif
+
+
+////////////////////////////////////////////////////
+
+
         
-        //NetDeviceContainer w2;
-        //NetDeviceContainer w1;
-   
+
+
+
+
+
+
+
+
+
+
+
+        //Ipv4AddressHelper ipv4_2;
+        //ipv4_2.SetBase("10.2.1.0", "255.255.255.0");
+        //Ipv4InterfaceContainer interfaces2 = ipv4_2.Assign(wifiDevices);
+        const char **strings = ethernet_strings;
+
+   #if 0
         NetDeviceContainer devices;
         const char **strings = ethernet_strings;
         if (m_networkType.compare("wifi") == 0) {
@@ -285,12 +441,15 @@ namespace ns3 {
         }
 
 
+
+
+
         InternetStackHelper internet;
         internet.Install(c);
         Ipv4AddressHelper ipv4;
         ipv4.SetBase("10.1.1.0", "255.255.255.0");
         Ipv4InterfaceContainer interfaces = ipv4.Assign(devices);
-
+#endif
 
 
         //Setup Server
@@ -301,7 +460,11 @@ namespace ns3 {
         server_helper.SetAttribute("Async", BooleanValue(m_bAsync));
         server_helper.SetAttribute("TimeOffset", TimeValue(timeOffset));
         ApplicationContainer serverApps = server_helper.Install(c.Get(server));
-        Address serverAddress(InetSocketAddress(interfaces.GetAddress(server, 0), 80));
+       // Address serverAddress(InetSocketAddress(c.Get(server)->GetObject<Ipv4>()->GetAddress(server, 0).GetLocal(), 80));
+
+        Address serverAddress(InetSocketAddress(ethIpv4InterfaceContainer.GetAddress(server, 0), 80));
+
+        //clients_c.Get((client_id))->GetObject<Ipv4>()->GetAddress(1, 0).GetLocal()
      
         ClientSessionManager gw_session_manager(gateways);
         serverApps.Get(0)->GetObject<ns3::Server>()->SetClientSessionManager(
@@ -363,7 +526,13 @@ namespace ns3 {
 
             int gateway_id = o.first;
             auto gateway_address = 
-                InetSocketAddress(gatewayApps.Get(gateway_id)->GetNode()->GetObject<Ipv4>()->GetAddress(1, 0).GetLocal(),80);
+                InetSocketAddress(gatewayApps.Get(gateway_id)->GetNode()->GetObject<Ipv4>()->GetAddress(2, 0).GetLocal(),80);
+
+
+            NS_LOG_UNCOND("GW:" <<gatewayApps.Get(gateway_id)->GetNode()->GetObject<Ipv4>()->GetAddress(2, 0).GetLocal());
+            //NS_LOG_UNCOND()
+
+
 
             for(auto j:o.second)
             {
@@ -376,7 +545,15 @@ namespace ns3 {
                     continue;
                 }
 
+                NS_LOG_UNCOND("   CL:" << clients_c.Get((client_id))->GetObject<Ipv4>()->GetAddress(1, 0).GetLocal());
+
                 m_clientIdAddrMap[clients_c.Get((client_id))->GetObject<Ipv4>()->GetAddress(1, 0).GetLocal()] = client_id;
+
+
+              //  NS_LOG_UNCOND(gatewayApps.Get(gateway_id)->GetNode()->GetObject<Ipv4>()->GetAddress(2, 0).GetLocal());
+              //  NS_LOG_UNCOND(clients_c.Get(client_id)->GetObject<Ipv4>()->GetAddress(1, 0).GetLocal());
+              //  exit(0);
+
 
                 Ptr <Socket> source = Socket::CreateSocket(clients_c.Get(client_id), TcpSocketFactory::GetTypeId());
                 source->SetAttribute("ConnCount", UintegerValue(1000));
@@ -398,6 +575,8 @@ namespace ns3 {
             }
 
         }
+
+        NS_LOG_UNCOND("<>");
 
 
         for(auto o:gatewayClientSessions)
@@ -451,7 +630,7 @@ namespace ns3 {
             }
 
 
-
+            int gw_cnt = 0;
             for(auto o:gateways)
             {
                 if(!o.second->GetInRound())
@@ -461,14 +640,18 @@ namespace ns3 {
                 
                 auto s1 = gatewayApps.Get(o.first)->GetObject<ns3::Gateway>();
                 auto sk = s1->GetAcceptedSockets();
+                auto gw_address = (InetSocketAddress(gateway_c.Get(gw_cnt)->GetObject<Ipv4>()->GetAddress(1, 0).GetLocal(), 80)).GetIpv4();
 
                 for (auto itr = sk.begin(); itr != sk.end(); itr++) {
                     auto beginUplink = itr->second->m_timeBeginReceivingModelFromClient;
                     auto endUplink = itr->second->m_timeEndReceivingModelFromClient;
                     auto clientAddress = InetSocketAddress::ConvertFrom(itr->second->m_address).GetIpv4();
 
+                    
+
+
                     NS_LOG_UNCOND(
-                            "[CLIENT TO GATEWAY]  " << clientAddress << " -> 10.1.1.1" << std::endl <<
+                            "[CLIENT TO GATEWAY]  " << clientAddress << " -> " << gw_address << std::endl <<
                                         "  Sent=     " << itr->second->m_bytesSent << " bytes" << std::endl <<
                                         "  Recv=     " << itr->second->m_bytesReceived << " bytes" << std::endl <<
                                         "  Begin uplink=" << beginUplink.As(Time::S) << std::endl <<
@@ -480,6 +663,8 @@ namespace ns3 {
                                                     ((endUplink.GetDouble() - beginUplink.GetDouble()) / 1000000000.0);
 
                 }
+
+                gw_cnt++;
             }
 
 
@@ -501,8 +686,10 @@ namespace ns3 {
                     app->GetAttribute("BeginDownlink", begin);
                     app->GetAttribute("EndDownlink", end);
 
-                    clientAddress = InetSocketAddress::ConvertFrom(
-                            InetSocketAddress(interfaces.GetAddress(o.first, 0), 80)).GetIpv4();
+                    clientAddress = (InetSocketAddress(gateway_c.Get(o.first)->GetObject<Ipv4>()->GetAddress(1, 0).GetLocal(), 80)).GetIpv4();
+
+                    //clientAddress = InetSocketAddress::ConvertFrom(
+                    //        InetSocketAddress(interfaces.GetAddress(o.first, 0), 80)).GetIpv4();
                     NS_LOG_UNCOND(
                             "[SERVER TO GATEWAY]  " << "10.1.1.1 -> " << clientAddress << std::endl <<
                                          "  Sent=" << sent.Get() << " bytes" << std::endl <<

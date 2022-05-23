@@ -92,7 +92,7 @@ int main(int argc, char *argv[]) {
     std::vector<NodeConfiguration> nodeConfiguration;
     ReadCsvLoc("client_loc2.txt",client_points);
     ReadCsvLoc("gateway_loc2.txt",gateway_points);
-    ReadCsvCfg("gw0.txt", nodeConfiguration);
+    ReadCsvCfg("gw_10.txt", nodeConfiguration);
 
 
     std::string dataRate = "256kbps";                  /* Application layer datarate. */

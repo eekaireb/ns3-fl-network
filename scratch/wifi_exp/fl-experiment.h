@@ -106,6 +106,9 @@ namespace ns3 {
         NetDeviceContainer Wifi(ns3::NodeContainer &c, std::map<int, std::shared_ptr<ClientSession> > &gateways,
         std::map<int, std::shared_ptr<ClientSession> > &clients);
 
+
+        NetDeviceContainer Wifi(ns3::NodeContainer &c);
+
         /**
         * \brief Sets up ethernet network
         */
