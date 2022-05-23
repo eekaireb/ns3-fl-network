@@ -142,16 +142,8 @@ void ClientSessionManager::Init()
     int ClientSessionManager::ResolveToIdFromServer(ns3::Ptr<ns3::Socket> socket) {
         ns3::Address addr;
         socket->GetPeerName(addr);
-        NS_LOG_UNCOND(addr);
         auto temp = ns3::InetSocketAddress::ConvertFrom(addr).GetIpv4();
-        NS_LOG_UNCOND(temp);
-
-        auto t=ResolveToId(temp);
-NS_LOG_UNCOND(t);
-
-
-        return t;
-
+        return ResolveToId(temp);
     }
 
     void ClientSessionManager::Close() {
